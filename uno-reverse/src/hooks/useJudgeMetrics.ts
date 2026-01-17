@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { JudgeMetrics, MetricExplanation, JudgeSession } from '@/types/judge.types';
+import { JudgeMetrics, MetricExplanation, JudgeSession, HumanDetectionResult } from '@/types/judge.types';
 import { metricsService } from '@/services/metricsService';
 
 const initialMetrics: JudgeMetrics = {
@@ -9,7 +9,7 @@ const initialMetrics: JudgeMetrics = {
   vibeAlignment: 0,
 };
 
-export function useJudgeMetrics(isRecording: boolean) {
+export function useJudgeMetrics(isRecording: boolean, detectionResult?: HumanDetectionResult | null) {
   const [session, setSession] = useState<JudgeSession>({
     id: crypto.randomUUID(),
     startTime: new Date(),
@@ -19,8 +19,8 @@ export function useJudgeMetrics(isRecording: boolean) {
     overallScore: 0,
   });
 
-  const updateMetrics = useCallback((newMetrics: JudgeMetrics) => {
-    const explanations = metricsService.generateExplanations(newMetrics);
+  const updateMetrics = useCallback((newMetrics: JudgeMetrics, detection?: HumanDetectionResult | null) => {
+    const explanations = metricsService.generateExplanations(newMetrics, detection);
     const overallScore = metricsService.calculateOverallScore(newMetrics);
     
     setSession(prev => ({
@@ -31,21 +31,38 @@ export function useJudgeMetrics(isRecording: boolean) {
     }));
   }, []);
 
-  // Simulate real-time updates when recording
+  // Update metrics when detection result changes
   useEffect(() => {
-    if (!isRecording) return;
+    if (isRecording && detectionResult) {
+      console.log('🔍 Detection Result:', {
+        faceDetected: detectionResult.face?.detected,
+        confidence: detectionResult.face?.confidence,
+        hasGaze: !!detectionResult.face?.gaze,
+        gazeStrength: detectionResult.face?.gaze?.strength,
+        gazeBearing: detectionResult.face?.gaze?.bearing,
+        hasEmotion: !!detectionResult.face?.emotion,
+        hasRotation: !!detectionResult.face?.rotation,
+      });
+      
+      const newMetrics = metricsService.calculateMetricsFromDetection(detectionResult);
+      
+      console.log('📊 Calculated Metrics:', newMetrics);
+      
+      // Log snapshot for session summary
+      metricsService.logSnapshot(newMetrics, detectionResult);
+      
+      updateMetrics(newMetrics, detectionResult);
+    } else if (isRecording && !detectionResult) {
+      console.log('⚠️ Recording but no detection result yet');
+    }
+  }, [detectionResult, isRecording, updateMetrics]);
 
-    // Initial metrics
-    const initialUpdate = metricsService.simulateMetricsUpdate();
-    updateMetrics(initialUpdate);
-
-    const interval = setInterval(() => {
-      const newMetrics = metricsService.simulateMetricsUpdate();
-      updateMetrics(newMetrics);
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [isRecording, updateMetrics]);
+  // Start session when recording starts
+  useEffect(() => {
+    if (isRecording) {
+      metricsService.startSession();
+    }
+  }, [isRecording]);
 
   useEffect(() => {
     setSession(prev => ({ ...prev, isRecording }));
