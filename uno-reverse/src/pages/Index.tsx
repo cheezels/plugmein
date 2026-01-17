@@ -5,11 +5,20 @@ import { CameraFeed } from '@/components/judge/CameraFeed';
 import { MetricsPanel } from '@/components/judge/MetricsPanel';
 import { useCamera } from '@/hooks/useCamera';
 import { useJudgeMetrics } from '@/hooks/useJudgeMetrics';
+import { useHumanDetection } from '@/hooks/useHumanDetection';
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
   const { cameraState, videoRef, startCamera, stopCamera } = useCamera();
-  const { session } = useJudgeMetrics(isRecording);
+
+  // Human detection hook
+  const { detectionResult } = useHumanDetection({
+    videoElement: videoRef.current,
+    isActive: cameraState.isActive,
+    isRecording,
+  });
+
+  const { session } = useJudgeMetrics(isRecording, detectionResult);
 
   const handleToggleRecording = () => {
     setIsRecording(prev => !prev);
@@ -37,6 +46,7 @@ const Index = () => {
                 ref={videoRef}
                 cameraState={cameraState}
                 isRecording={isRecording}
+                detectionResult={detectionResult}
                 onStartCamera={startCamera}
                 onStopCamera={handleStopCamera}
                 onToggleRecording={handleToggleRecording}

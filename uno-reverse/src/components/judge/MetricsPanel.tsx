@@ -36,6 +36,7 @@ export function MetricsPanel({ session }: MetricsPanelProps) {
               key={explanation.metric}
               explanation={explanation}
               delay={index * 0.1}
+              isWorkInProgress={explanation.metric === 'questionQuality'}
             />
           ))
         ) : (

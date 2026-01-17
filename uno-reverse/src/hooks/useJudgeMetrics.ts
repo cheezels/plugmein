@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { JudgeMetrics, MetricExplanation, JudgeSession } from '@/types/judge.types';
+import { JudgeMetrics, MetricExplanation, JudgeSession, HumanDetectionResult } from '@/types/judge.types';
 import { metricsService } from '@/services/metricsService';
 
 const initialMetrics: JudgeMetrics = {
@@ -9,7 +9,7 @@ const initialMetrics: JudgeMetrics = {
   vibeAlignment: 0,
 };
 
-export function useJudgeMetrics(isRecording: boolean) {
+export function useJudgeMetrics(isRecording: boolean, detectionResult?: HumanDetectionResult | null) {
   const [session, setSession] = useState<JudgeSession>({
     id: crypto.randomUUID(),
     startTime: new Date(),
@@ -19,8 +19,8 @@ export function useJudgeMetrics(isRecording: boolean) {
     overallScore: 0,
   });
 
-  const updateMetrics = useCallback((newMetrics: JudgeMetrics) => {
-    const explanations = metricsService.generateExplanations(newMetrics);
+  const updateMetrics = useCallback((newMetrics: JudgeMetrics, detection?: HumanDetectionResult | null) => {
+    const explanations = metricsService.generateExplanations(newMetrics, detection);
     const overallScore = metricsService.calculateOverallScore(newMetrics);
     
     setSession(prev => ({
@@ -31,9 +31,17 @@ export function useJudgeMetrics(isRecording: boolean) {
     }));
   }, []);
 
-  // Simulate real-time updates when recording
+  // Update metrics when detection result changes
   useEffect(() => {
-    if (!isRecording) return;
+    if (detectionResult && isRecording) {
+      const newMetrics = metricsService.calculateMetricsFromDetection(detectionResult);
+      updateMetrics(newMetrics, detectionResult);
+    }
+  }, [detectionResult, isRecording, updateMetrics]);
+
+  // Fallback: Simulate real-time updates when recording but no detection
+  useEffect(() => {
+    if (!isRecording || detectionResult) return;
 
     // Initial metrics
     const initialUpdate = metricsService.simulateMetricsUpdate();
@@ -45,7 +53,7 @@ export function useJudgeMetrics(isRecording: boolean) {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [isRecording, updateMetrics]);
+  }, [isRecording, detectionResult, updateMetrics]);
 
   useEffect(() => {
     setSession(prev => ({ ...prev, isRecording }));

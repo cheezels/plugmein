@@ -1,24 +1,132 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Video, VideoOff, Circle } from 'lucide-react';
-import { CameraState } from '@/types/judge.types';
+import { CameraState, HumanDetectionResult } from '@/types/judge.types';
 
 interface CameraFeedProps {
   cameraState: CameraState;
   isRecording: boolean;
+  detectionResult?: HumanDetectionResult | null;
   onStartCamera: () => void;
   onStopCamera: () => void;
   onToggleRecording: () => void;
 }
 
 export const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(
-  ({ cameraState, isRecording, onStartCamera, onStopCamera, onToggleRecording }, ref) => {
+  ({ cameraState, isRecording, detectionResult, onStartCamera, onStopCamera, onToggleRecording }, ref) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Draw detection overlays on canvas
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      const video = ref && 'current' in ref ? ref.current : null;
+      if (!canvas || !video || !detectionResult || !isRecording) {
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+          }
+        }
+        return;
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Set canvas size to match video
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw face detection
+      if (detectionResult.face?.detected) {
+        // Draw face bounding box (simplified - would need actual bounding box from Human)
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        
+        // Draw face indicator in center area (since we don't have exact bbox)
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const size = Math.min(canvas.width, canvas.height) * 0.3;
+        
+        ctx.strokeRect(centerX - size / 2, centerY - size / 2, size, size);
+        
+        // Draw emotion indicator
+        if (detectionResult.face.emotion) {
+          const { happy, surprised } = detectionResult.face.emotion;
+          if (happy > 0.5 || surprised > 0.4) {
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.3)';
+            ctx.fillRect(centerX - size / 2, centerY - size / 2, size, size);
+          }
+        }
+
+        // Draw gaze indicator
+        if (detectionResult.face.gaze) {
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2;
+          const gazeStrength = detectionResult.face.gaze.strength;
+          const radius = size * 0.3 * gazeStrength;
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      // Draw hand detection
+      if (detectionResult.hand?.detected && detectionResult.hand.landmarks) {
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = '#f59e0b';
+        
+        // Draw hand landmarks
+        detectionResult.hand.landmarks.forEach((landmark, index) => {
+          const x = landmark.x * canvas.width;
+          const y = landmark.y * canvas.height;
+          
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Draw connections for key points (simplified)
+          if (index > 0 && index % 4 === 0) {
+            const prevLandmark = detectionResult.hand.landmarks![index - 4];
+            const prevX = prevLandmark.x * canvas.width;
+            const prevY = prevLandmark.y * canvas.height;
+            ctx.beginPath();
+            ctx.moveTo(prevX, prevY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+          }
+        });
+
+        // Draw gesture label
+        if (detectionResult.hand.gestures && detectionResult.hand.gestures.length > 0) {
+          const firstLandmark = detectionResult.hand.landmarks[0];
+          const labelX = firstLandmark.x * canvas.width;
+          const labelY = (firstLandmark.y * canvas.height) - 10;
+          
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.fillRect(labelX - 40, labelY - 15, 80, 20);
+          ctx.fillStyle = '#f59e0b';
+          ctx.font = '12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(detectionResult.hand.gestures[0], labelX, labelY);
+        }
+      }
+    }, [detectionResult, isRecording, ref]);
+
     return (
       <motion.div
+        ref={containerRef}
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.6 }}
-        className="camera-feed bg-secondary aspect-video w-full"
+        className="camera-feed bg-secondary aspect-video w-full relative"
       >
         {cameraState.isActive ? (
           <>
@@ -29,6 +137,33 @@ export const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(
               muted
               className="w-full h-full object-cover"
             />
+            
+            {/* Detection overlay canvas */}
+            {isRecording && (
+              <canvas
+                ref={canvasRef}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={{ objectFit: 'cover' }}
+              />
+            )}
+            
+            {/* Detection status indicators */}
+            {isRecording && detectionResult && (
+              <div className="absolute top-4 left-4 flex flex-col gap-2">
+                {detectionResult.face?.detected && (
+                  <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm px-2 py-1 rounded text-xs">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <span className="text-foreground">Face Detected</span>
+                  </div>
+                )}
+                {detectionResult.hand?.detected && (
+                  <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm px-2 py-1 rounded text-xs">
+                    <div className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="text-foreground">Hand Detected</span>
+                  </div>
+                )}
+              </div>
+            )}
             
             {/* Recording overlay */}
             {isRecording && (
