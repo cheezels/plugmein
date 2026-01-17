@@ -60,6 +60,7 @@ def health_check():
 @app.route("/transcribe-chunk", methods=["POST"])
 def transcribe_chunk():
     """Process a single audio chunk, transcribe it, and store for later GPT feedback"""
+    print("Transcribe chunk requested")
     try:
         # Validate request
         if 'audio' not in request.files:
@@ -85,7 +86,7 @@ def transcribe_chunk():
             return jsonify({"error": "Failed to convert audio"}), 500
 
         # Transcribe with Whisper
-        result = whisper_model.transcribe(wav_path)
+        result = whisper_model.transcribe(wav_path, language="en")
         text = result["text"].strip()
 
         logger.info(f"Chunk {chunk_index} transcribed: {len(text)} characters")
@@ -114,6 +115,39 @@ def transcribe_chunk():
         logger.error(f"Error in transcribe_chunk: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route("/get-transcripts", methods=["POST"])
+def get_transcripts():
+    """Retrieve all stored transcripts for the session and clear them"""
+    try:
+        data = request.get_json() or {}
+        session_id = data.get('sessionId', 'default')
+
+        # Check if transcripts exist for this session
+        if session_id not in transcript_storage or not transcript_storage[session_id]:
+            return jsonify({"error": "No transcripts found for this session"}), 400
+
+        # Sort chunks by index and combine into full transcript
+        chunks = transcript_storage[session_id]
+        chunks.sort(key=lambda x: x[0])  # Sort by chunk_index
+        transcript = " ".join([text for _, text in chunks])
+        chunk_count = len(chunks)
+
+        logger.info(f"Collected {chunk_count} chunks for session {session_id}")
+
+        # Clear the transcripts for this session
+        del transcript_storage[session_id]
+        logger.info(f"Cleared transcripts for session {session_id}")
+
+        return jsonify({
+            "transcript": transcript,
+            "chunkCount": chunk_count,
+            "success": True
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error in get_transcripts: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
 # @app.route("/gpt-feedback", methods=["POST"])
 # def gpt_feedback():
 #     """Collect all stored transcripts for the session and generate GPT feedback"""
