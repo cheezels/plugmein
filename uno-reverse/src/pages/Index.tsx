@@ -10,6 +10,8 @@ import { transcribingService } from '@/services/transcribingService';
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState<string>('');
+  const [feedback, setFeedback] = useState<string>('');
+  const [score, setScore] = useState<number | null>(null);
   const { cameraState, videoRef, startCamera, stopCamera } = useCamera();
   const { session } = useJudgeMetrics(isRecording);
 
@@ -19,11 +21,21 @@ const Index = () => {
     if (isRecording) {
       // Stop recording
       const result = await transcribingService.stopRecording();
-      setTranscript(result || '');
+      if (result) {
+        setTranscript(result.transcript);
+        setFeedback(result.feedback);
+        setScore(result.score);
+      } else {
+        setTranscript('');
+        setFeedback('');
+        setScore(null);
+      }
       setIsRecording(false);
     } else {
-      // Start recording - clear transcript
+      // Start recording - clear transcript, feedback, and score
       setTranscript('');
+      setFeedback('');
+      setScore(null);
       await transcribingService.startRecording((text, chunkIndex) => {
         console.log(`Chunk ${chunkIndex}: ${text}`);
       });
@@ -34,7 +46,15 @@ const Index = () => {
   const handleStopCamera = async () => {
     if (isRecording) {
       const result = await transcribingService.stopRecording();
-      setTranscript(result || '');
+      if (result) {
+        setTranscript(result.transcript);
+        setFeedback(result.feedback);
+        setScore(result.score);
+      } else {
+        setTranscript('');
+        setFeedback('');
+        setScore(null);
+      }
     }
     setIsRecording(false);
     stopCamera();
@@ -92,13 +112,55 @@ const Index = () => {
                 </div>
               </motion.div>
 
+              {/* Score display - only show when there's a score and not recording */}
+              {score !== null && !isRecording && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ delay: 0.3 }}
+                  className="glass-panel p-6 flex items-center justify-center"
+                >
+                  <div className="text-center">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wider">Score</span>
+                    <div className="text-5xl font-bold text-foreground mt-1">
+                      {score}
+                      <span className="text-2xl text-muted-foreground">/100</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Feedback box - only show when there's feedback and not recording */}
+              {feedback && !isRecording && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ delay: 0.4 }}
+                  className="glass-panel p-4"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-foreground">Feedback</span>
+                    <span className="text-xs text-muted-foreground">
+                      get good.
+                    </span>
+                  </div>
+                  <div className="bg-background/50 rounded-lg p-3 max-h-64 overflow-y-auto">
+                    <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                      {feedback}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
               {/* Transcript box - only show when there's a transcript and not recording */}
               {transcript && !isRecording && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  transition={{ delay: 0.2 }}
+                  transition={{ delay: 0.5 }}
                   className="glass-panel p-4"
                 >
                   <div className="flex items-center justify-between mb-3">
