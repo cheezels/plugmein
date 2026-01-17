@@ -8,10 +8,12 @@ import { useCamera } from '@/hooks/useCamera';
 import { useJudgeMetrics } from '@/hooks/useJudgeMetrics';
 import { useHumanDetection } from '@/hooks/useHumanDetection';
 import { metricsService } from '@/services/metricsService';
+import { transcribingService } from '@/services/transcribingService';
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [sessionSummary, setSessionSummary] = useState<any | null>(null);
+  const [transcript, setTranscript] = useState<string>('');
   const { cameraState, videoRef, startCamera } = useCamera();
 
   // Auto-start camera on mount
@@ -28,16 +30,60 @@ const Index = () => {
 
   const { session } = useJudgeMetrics(isRecording, detectionResult);
 
-  const handleToggleRecording = () => {
-    if (isRecording) {
-      // Stopping recording - generate summary
-      const summary = metricsService.generateSessionSummary();
-      if (summary) {
-        setSessionSummary(summary);
+  const handleToggleRecording = async () => {
+    console.log('🎙️ Toggling recording. Current state:', isRecording);
+    try {
+      if (isRecording) {
+        console.log('⏹️ Stopping recording...');
+        
+        // Stop face detection first (synchronous)
+        setIsRecording(false);
+        
+        // Generate summary (synchronous)
+        const summary = metricsService.generateSessionSummary();
+        if (summary) {
+          console.log('📝 Session summary generated:', summary);
+          setSessionSummary(summary);
+        }
+        
+        // Stop transcription (async, but don't block UI)
+        transcribingService.stopRecording()
+          .then((result) => {
+            console.log('✅ Transcription stopped. Result:', result ? `${result.length} characters` : 'no transcript');
+            setTranscript(result || '');
+          })
+          .catch((error) => {
+            console.error('⚠️ Failed to stop transcription:', error);
+          });
+      } else {
+        console.log('▶️ Starting recording...');
+        
+        // Clear previous data
+        setTranscript('');
+        setSessionSummary(null);
+        
+        // Start face detection immediately (don't wait for transcription)
+        setIsRecording(true);
+        console.log('✅ Recording state set to true - face detection should start');
+        
+        // Start transcription in parallel (don't block face detection)
+        transcribingService.startRecording((text, chunkIndex) => {
+          console.log(`📄 Transcription chunk ${chunkIndex}: ${text}`);
+        })
+          .then(() => {
+            console.log('✅ Transcription started successfully');
+          })
+          .catch((error) => {
+            console.error('⚠️ Failed to start transcription (face detection will continue):', error);
+          });
       }
+    } catch (error) {
+      console.error('❌ Error toggling recording:', error);
+      // Even if there's an error, try to toggle recording state for face detection
+      setIsRecording(!isRecording);
     }
-    setIsRecording(prev => !prev);
   };
+
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -82,13 +128,49 @@ const Index = () => {
                     </span>
                   </div>
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    {isRecording ? 'Recording in progress' : 'Ready to analyze'}
-                  </span>
+
+                <div className="flex items-center gap-3">
+                  {isRecording && (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-xs text-foreground">Face Detection</span>
+                      </div>
+                      <div className="w-px h-3 bg-border" />
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                        <span className="text-xs text-foreground">Transcription</span>
+                      </div>
+                    </>
+                  )}
+                  {!isRecording && (
+                    <span className="text-xs text-muted-foreground">Ready to analyze</span>
+                  )}
                 </div>
               </motion.div>
+
+              {/* Transcript box - only show when there's a transcript and not recording */}
+              {transcript && !isRecording && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ delay: 0.2 }}
+                  className="glass-panel p-4"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-foreground">Transcript</span>
+                    <span className="text-xs text-muted-foreground">
+                      {transcript.length} characters
+                    </span>
+                  </div>
+                  <div className="bg-background/50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                    <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                      {transcript}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
             </motion.div>
 
             {/* Metrics Panel */}

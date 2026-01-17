@@ -31,19 +31,26 @@ export function useHumanDetection({
   // Initialize Human service
   useEffect(() => {
     if (isActive && !isInitializedRef.current) {
+      console.log('🚀 Initializing Human detection service...');
       humanService
         .initialize()
         .then(() => {
           isInitializedRef.current = true;
-          console.log('Human detection initialized');
+          console.log('✅ Human detection initialized successfully');
         })
         .catch((error) => {
-          console.error('Failed to initialize Human detection:', error);
+          console.error('❌ Failed to initialize Human detection:', error);
         });
+    } else {
+      console.log('⏭️ Skipping initialization:', {
+        isActive,
+        alreadyInitialized: isInitializedRef.current,
+      });
     }
 
     return () => {
       if (!isActive) {
+        console.log('🔄 Resetting initialization state');
         isInitializedRef.current = false;
       }
     };
@@ -60,6 +67,14 @@ export function useHumanDetection({
   const detectFrame = useCallback(async () => {
     const currentVideo = videoElementRef.current;
     if (!currentVideo || !isActive || !isRecording || isProcessing) {
+      detectionFrameRef.current = requestAnimationFrame(detectFrame);
+      return;
+    }
+
+    // Check if video is actually playing and has dimensions
+    if (currentVideo.readyState < 2 || currentVideo.videoWidth === 0) {
+      console.log('⏳ Video not ready yet, waiting...');
+      detectionFrameRef.current = requestAnimationFrame(detectFrame);
       return;
     }
 
@@ -72,16 +87,23 @@ export function useHumanDetection({
     }
     lastDetectionTimeRef.current = now;
 
+    console.log('🔍 Running detection...');
     setIsProcessing(true);
     try {
       const result = await humanService.detect(currentVideo);
+      console.log('✅ Detection complete:', {
+        faceDetected: result.face?.detected,
+        handDetected: result.hand?.detected,
+        bodyDetected: result.body?.detected,
+      });
       setDetectionResult(result);
 
       // Calculate metrics from detection
       const metrics = metricsService.calculateMetricsFromDetection(result);
+      console.log('📊 Metrics calculated:', metrics);
       onMetricsUpdate?.(metrics);
     } catch (error) {
-      console.error('Detection error:', error);
+      console.error('❌ Detection error:', error);
     } finally {
       setIsProcessing(false);
       // Continue detection loop
@@ -93,11 +115,22 @@ export function useHumanDetection({
 
   // Start/stop detection loop
   useEffect(() => {
-    if (isActive && isRecording && videoElementRef.current && isInitializedRef.current) {
-      // Start detection loop
+    console.log('🎬 Detection loop effect triggered:', {
+      isActive,
+      isRecording,
+      hasVideo: !!videoElementRef.current,
+      isInitialized: isInitializedRef.current,
+      videoReadyState: videoElementRef.current?.readyState,
+      videoWidth: videoElementRef.current?.videoWidth,
+    });
+
+    if (isActive && isRecording && isInitializedRef.current) {
+      // Start detection loop - it will wait for video to be ready internally
+      console.log('✅ Starting detection loop');
       detectionFrameRef.current = requestAnimationFrame(detectFrame);
     } else {
       // Stop detection loop
+      console.log('❌ Stopping detection loop');
       if (detectionFrameRef.current !== null) {
         cancelAnimationFrame(detectionFrameRef.current);
         detectionFrameRef.current = null;
