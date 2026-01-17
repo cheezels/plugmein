@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { CameraFeed } from '@/components/judge/CameraFeed';
@@ -9,6 +9,7 @@ import { useJudgeMetrics } from '@/hooks/useJudgeMetrics';
 import { useHumanDetection } from '@/hooks/useHumanDetection';
 import { metricsService } from '@/services/metricsService';
 import { transcribingService } from '@/services/transcribingService';
+import { io } from 'socket.io-client';
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -24,37 +25,89 @@ const Index = () => {
   const [questionQuality, setQuestionQuality] = useState<number>(0);
   const [questionInsights, setQuestionInsights] = useState<string>('');
   const { cameraState, videoRef, startCamera, stopCamera } = useCamera();
-
-  // Auto-start camera on mount
-  useEffect(() => {
-    startCamera();
-  }, [startCamera]);
-
-  // Human detection hook
-  const { detectionResult } = useHumanDetection({
-    videoElement: videoRef.current,
-    isActive: cameraState.isActive,
-    isRecording,
-  });
-
-  const { session, updateMetrics } = useJudgeMetrics(isRecording, detectionResult);
-
-  // Update question quality in metrics when it changes
-  useEffect(() => {
-    if (questionQuality > 0 && !isRecording) {
-      const updatedMetrics = {
-        ...session.metrics,
-        questionQuality: questionQuality,
-      };
-      updateMetrics(updatedMetrics, null);
-      console.log('📊 Updated metrics with question quality:', updatedMetrics);
+  const [sessionId] = useState(() => {
+    // Generate a random 6-character alphanumeric session ID (e.g., "A2K9X7")
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let id = '';
+    for (let i = 0; i < 6; i++) {
+      id += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-  }, [questionQuality, isRecording, session.metrics, updateMetrics]);
+    return id;
+  });
+  const socketRef = useRef(null);
 
-  const handleToggleRecording = async () => {
-    console.log('🎙️ Toggling recording. Current state:', isRecording);
-    try {
+  // Initialize WebSocket connection to backend
+  useEffect(() => {
+    // Get backend URL (works for both localhost and network IP)
+    const backendUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:8081' 
+      : `http://${window.location.hostname}:8081`;
+    
+    const newSocket = io(backendUrl);
+    socketRef.current = newSocket;
+    
+    newSocket.on('connect', () => {
+      console.log('✅ Connected to backend WebSocket');
+      newSocket.emit('join_session', { 
+        sessionId: sessionId, 
+        deviceType: 'presenter' 
+      });
+    });
+    
+    // Listen for remote toggle commands from mobile controller
+    newSocket.on('toggle_recording_command', () => {
+      console.log('📱 Remote toggle command received from mobile controller');
+      // Toggle recording state (which will trigger handleToggleRecording via the button)
+      setIsRecording(prev => !prev);
+    });
+    
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [sessionId]);
+  
+  // When isRecording state changes, execute the recording logic
+  useEffect(() => {
+    const executeRecordingLogic = async () => {
+      // Broadcast recording state to all connected devices (especially mobile controller)
+      if (socketRef.current) {
+        socketRef.current.emit('recording_state_update', {
+          sessionId: sessionId,
+          isRecording: isRecording
+        });
+      }
+      
       if (isRecording) {
+        console.log('▶️ Starting recording...');
+        
+        // Clear previous data
+        setTranscript('');
+        setTaggedTranscript('');
+        setSegments([]);
+        setSessionSummary(null);
+        setSessionSnapshots([]);
+        setPresentationScore(null);
+        setQuestionCount(0);
+        setQuestionQuality(0);
+        setQuestionInsights('');
+        setFeedback('');
+        setIsProcessing(false);
+        
+        // Start face detection immediately
+        setIsRecording(true);
+        console.log('✅ Recording state set to true - face detection should start');
+        
+        // Start transcription in parallel
+        transcribingService.startRecording((text, chunkIndex) => {
+          console.log(`📄 Transcription chunk ${chunkIndex}: ${text}`);
+        })
+          .then(() => {
+            console.log('✅ Transcription started successfully');
+          })
+          .catch((error) => {
+            console.error('⚠️ Failed to start transcription (face detection will continue):', error);
+          });
+      } else {
         console.log('⏹️ Stopping recording...');
         
         // Show loading state immediately
@@ -147,42 +200,40 @@ const Index = () => {
         
         // Hide loading state
         setIsProcessing(false);
-      } else {
-        console.log('▶️ Starting recording...');
-        
-        // Clear previous data
-        setTranscript('');
-        setTaggedTranscript('');
-        setSegments([]);
-        setSessionSummary(null);
-        setSessionSnapshots([]);
-        setPresentationScore(null);
-        setQuestionCount(0);
-        setQuestionQuality(0);
-        setQuestionInsights('');
-        setFeedback('');
-        setIsProcessing(false);
-        
-        // Start face detection immediately
-        setIsRecording(true);
-        console.log('✅ Recording state set to true - face detection should start');
-        
-        // Start transcription in parallel
-        transcribingService.startRecording((text, chunkIndex) => {
-          console.log(`📄 Transcription chunk ${chunkIndex}: ${text}`);
-        })
-          .then(() => {
-            console.log('✅ Transcription started successfully');
-          })
-          .catch((error) => {
-            console.error('⚠️ Failed to start transcription (face detection will continue):', error);
-          });
       }
-    } catch (error) {
-      console.error('❌ Error toggling recording:', error);
-      setIsProcessing(false);
-      setIsRecording(!isRecording);
+    };
+    
+    executeRecordingLogic();
+  }, [isRecording]);
+  
+  // Auto-start camera on mount
+  useEffect(() => {
+    startCamera();
+  }, [startCamera]);
+
+  // Human detection hook
+  const { detectionResult } = useHumanDetection({
+    videoElement: videoRef.current,
+    isActive: cameraState.isActive,
+    isRecording,
+  });
+
+  const { session, updateMetrics } = useJudgeMetrics(isRecording, detectionResult);
+
+  // Update question quality in metrics when it changes
+  useEffect(() => {
+    if (questionQuality > 0 && !isRecording) {
+      const updatedMetrics = {
+        ...session.metrics,
+        questionQuality: questionQuality,
+      };
+      updateMetrics(updatedMetrics, null);
+      console.log('📊 Updated metrics with question quality:', updatedMetrics);
     }
+  }, [questionQuality, isRecording, session.metrics, updateMetrics]);
+
+  const handleToggleRecording = async () => {
+    setIsRecording(prev => !prev);
   };
 
 
@@ -216,8 +267,13 @@ const Index = () => {
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Session ID:</span>
-                    <code className="text-xs text-foreground font-mono">
-                      {session.id.slice(0, 8)}
+                    <code className="text-xs text-foreground font-mono bg-background/50 px-2 py-1 rounded cursor-pointer hover:bg-background/80" 
+                          title="Click to copy"
+                          onClick={() => {
+                            navigator.clipboard.writeText(sessionId);
+                            alert('Session ID copied to clipboard!');
+                          }}>
+                      {sessionId}
                     </code>
                   </div>
                   <div className="w-px h-4 bg-border" />
