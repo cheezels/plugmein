@@ -19,8 +19,8 @@ export function MetricsPanel({ session }: MetricsPanelProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">Judge Analysis</h2>
-          <p className="text-sm text-muted-foreground">Real-time behavioral metrics</p>
+          <h2 className="text-xl font-semibold text-foreground">Judge Reactions</h2>
+          <p className="text-sm text-muted-foreground">Real-time engagement metrics</p>
         </div>
       </div>
 
@@ -32,7 +32,6 @@ export function MetricsPanel({ session }: MetricsPanelProps) {
               key={explanation.metric}
               explanation={explanation}
               delay={index * 0.1}
-              isWorkInProgress={explanation.metric === 'questionQuality'}
             />
           ))
         ) : (

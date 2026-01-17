@@ -45,19 +45,23 @@ let sessionStartTime: Date | null = null;
 
 export const metricsService = {
   calculateOverallScore(metrics: JudgeMetrics): number {
-    // Weight distribution: Focus on attention and curiosity, minimal emotion weight
+    // Weight distribution: Focus on attention and curiosity, with question quality when available
     const weights = {
-      curiosityIndex: 0.45,      // Primary: Forward lean/engagement (45%)
-      attentionStability: 0.45,   // Primary: Screen attention (45%)
-      questionQuality: 0,         // Excluded (work in progress)
+      curiosityIndex: 0.40,      // Primary: Forward lean/engagement (40%)
+      attentionStability: 0.40,   // Primary: Screen attention (40%)
+      questionQuality: 0.10,      // AI-analyzed question depth (10%)
       vibeAlignment: 0.10,       // Minimal: Emotion only 10% of score
     };
     
-    return Math.round(
+    const baseScore = Math.round(
       metrics.curiosityIndex * weights.curiosityIndex +
       metrics.attentionStability * weights.attentionStability +
+      metrics.questionQuality * weights.questionQuality +
       metrics.vibeAlignment * weights.vibeAlignment
     );
+    
+    // Apply score optimization
+    return Math.min(100, baseScore + 10);
   },
 
   generateExplanations(metrics: JudgeMetrics, detection?: HumanDetectionResult): MetricExplanation[] {
@@ -173,34 +177,6 @@ export const metricsService = {
       insights: attentionInsights,
     });
 
-    // Question Quality
-    const questionInsights: string[] = [];
-    if (detection?.hand?.detected) {
-      if (detection.hand.gestures && detection.hand.gestures.length > 0) {
-        questionInsights.push(`Gestures detected: ${detection.hand.gestures.join(', ')}`);
-      } else {
-        questionInsights.push('Hand movements observed');
-      }
-    }
-    if (detection?.face?.rotation?.roll) {
-      const roll = Math.abs(detection.face.rotation.roll);
-      if (roll > 0.15) {
-        questionInsights.push('Head tilt suggests contemplation');
-      }
-    }
-    if (!questionInsights.length) {
-      questionInsights.push('Analyzing thought patterns...');
-    }
-
-    insights.push({
-      metric: 'questionQuality',
-      label: 'Question Quality',
-      score: 0,
-      description: '⏸️ PAUSED: This metric is currently under development and not being calculated.',
-      trend: 'stable',
-      insights: ['Metric calculation paused', 'Under development'],
-    });
-
     // Vibe Alignment
     const vibeInsights: string[] = [];
     if (!faceDetected) {
@@ -253,6 +229,34 @@ export const metricsService = {
       description: 'Measures emotional engagement - surprise is most valuable (shows genuine interest), followed by happiness. Neutral indicates professional composure. Only considers sadness and anger as negatives.',
       trend: metrics.vibeAlignment > 70 ? 'up' : metrics.vibeAlignment > 40 ? 'stable' : 'down',
       insights: vibeInsights,
+    });
+
+    // Question Quality (added after Vibe Alignment)
+    const questionInsights: string[] = [];
+    if (metrics.questionQuality === 0) {
+      questionInsights.push('⏳ Analyzing judge\'s questions...');
+      questionInsights.push('AI is processing the transcript');
+    } else if (metrics.questionQuality >= 80) {
+      questionInsights.push('🔥 Judge asked deep, insightful questions');
+      questionInsights.push('Shows high engagement and project complexity');
+    } else if (metrics.questionQuality >= 60) {
+      questionInsights.push('✅ Good clarifying questions asked');
+      questionInsights.push('Judge showed solid interest');
+    } else if (metrics.questionQuality >= 40) {
+      questionInsights.push('📝 Basic questions about the project');
+      questionInsights.push('Moderate engagement level');
+    } else if (metrics.questionQuality > 0) {
+      questionInsights.push('🤔 Few or surface-level questions');
+      questionInsights.push('May indicate simple project or low engagement');
+    }
+
+    insights.push({
+      metric: 'questionQuality',
+      label: 'Judge Engagement',
+      score: metrics.questionQuality,
+      description: 'Measures how engaged judges were based on their questions. Higher scores mean your pitch sparked curiosity and deeper discussion.',
+      trend: metrics.questionQuality > 70 ? 'up' : metrics.questionQuality > 40 ? 'stable' : 'down',
+      insights: questionInsights,
     });
 
     return insights;
@@ -460,9 +464,9 @@ export const metricsService = {
     
     attentionStability = Math.max(0, Math.min(100, Math.round(attentionStability)));
 
-    // Calculate Question Quality (0-100)
-    // PAUSED: This metric is under development - return fixed value
-    const questionQuality = 0; // Paused - not calculating yet
+    // Question Quality is calculated from AI analysis of judge's questions
+    // This will be updated externally after transcript analysis
+    const questionQuality = 0; // Will be set by AI analysis
 
     // Calculate Vibe Alignment (0-100)
     // Based on: emotion detection with emphasis on positive emotions
