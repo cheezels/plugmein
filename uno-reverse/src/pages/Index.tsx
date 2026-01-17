@@ -17,7 +17,6 @@ const Index = () => {
   const [feedback, setFeedback] = useState<string>('');
   const [score, setScore] = useState<number | null>(null);
   const { cameraState, videoRef, startCamera, stopCamera } = useCamera();
-  const { session } = useJudgeMetrics(isRecording);
 
   // Auto-start camera on mount
   useEffect(() => {
@@ -111,7 +110,6 @@ const Index = () => {
                 ref={videoRef}
                 cameraState={cameraState}
                 isRecording={isRecording}
-                detectionResult={detectionResult}
                 onToggleRecording={handleToggleRecording}
               />
               
