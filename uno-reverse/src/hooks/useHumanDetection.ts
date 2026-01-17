@@ -63,10 +63,10 @@ export function useHumanDetection({
       return;
     }
 
-    // Throttle detection to ~15-20 FPS to avoid overloading
+    // Throttle detection to every 2 seconds for stable metrics
     const now = Date.now();
-    if (now - lastDetectionTimeRef.current < 50) {
-      // Skip this frame if too soon
+    if (now - lastDetectionTimeRef.current < 2000) {
+      // Skip this frame if too soon (less than 2 seconds since last detection)
       detectionFrameRef.current = requestAnimationFrame(detectFrame);
       return;
     }

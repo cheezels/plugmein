@@ -1,15 +1,23 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { CameraFeed } from '@/components/judge/CameraFeed';
 import { MetricsPanel } from '@/components/judge/MetricsPanel';
+import { SessionSummary } from '@/components/judge/SessionSummary';
 import { useCamera } from '@/hooks/useCamera';
 import { useJudgeMetrics } from '@/hooks/useJudgeMetrics';
 import { useHumanDetection } from '@/hooks/useHumanDetection';
+import { metricsService } from '@/services/metricsService';
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
-  const { cameraState, videoRef, startCamera, stopCamera } = useCamera();
+  const [sessionSummary, setSessionSummary] = useState<any | null>(null);
+  const { cameraState, videoRef, startCamera } = useCamera();
+
+  // Auto-start camera on mount
+  useEffect(() => {
+    startCamera();
+  }, [startCamera]);
 
   // Human detection hook
   const { detectionResult } = useHumanDetection({
@@ -21,12 +29,14 @@ const Index = () => {
   const { session } = useJudgeMetrics(isRecording, detectionResult);
 
   const handleToggleRecording = () => {
+    if (isRecording) {
+      // Stopping recording - generate summary
+      const summary = metricsService.generateSessionSummary();
+      if (summary) {
+        setSessionSummary(summary);
+      }
+    }
     setIsRecording(prev => !prev);
-  };
-
-  const handleStopCamera = () => {
-    setIsRecording(false);
-    stopCamera();
   };
 
   return (
@@ -47,8 +57,6 @@ const Index = () => {
                 cameraState={cameraState}
                 isRecording={isRecording}
                 detectionResult={detectionResult}
-                onStartCamera={startCamera}
-                onStopCamera={handleStopCamera}
                 onToggleRecording={handleToggleRecording}
               />
               
@@ -88,6 +96,16 @@ const Index = () => {
           </div>
         </div>
       </main>
+
+      {/* Session Summary Modal */}
+      <AnimatePresence>
+        {sessionSummary && (
+          <SessionSummary
+            summary={sessionSummary}
+            onClose={() => setSessionSummary(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

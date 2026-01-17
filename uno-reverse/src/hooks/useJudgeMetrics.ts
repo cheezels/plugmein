@@ -33,27 +33,36 @@ export function useJudgeMetrics(isRecording: boolean, detectionResult?: HumanDet
 
   // Update metrics when detection result changes
   useEffect(() => {
-    if (detectionResult && isRecording) {
+    if (isRecording && detectionResult) {
+      console.log('🔍 Detection Result:', {
+        faceDetected: detectionResult.face?.detected,
+        confidence: detectionResult.face?.confidence,
+        hasGaze: !!detectionResult.face?.gaze,
+        gazeStrength: detectionResult.face?.gaze?.strength,
+        gazeBearing: detectionResult.face?.gaze?.bearing,
+        hasEmotion: !!detectionResult.face?.emotion,
+        hasRotation: !!detectionResult.face?.rotation,
+      });
+      
       const newMetrics = metricsService.calculateMetricsFromDetection(detectionResult);
+      
+      console.log('📊 Calculated Metrics:', newMetrics);
+      
+      // Log snapshot for session summary
+      metricsService.logSnapshot(newMetrics, detectionResult);
+      
       updateMetrics(newMetrics, detectionResult);
+    } else if (isRecording && !detectionResult) {
+      console.log('⚠️ Recording but no detection result yet');
     }
   }, [detectionResult, isRecording, updateMetrics]);
 
-  // Fallback: Simulate real-time updates when recording but no detection
+  // Start session when recording starts
   useEffect(() => {
-    if (!isRecording || detectionResult) return;
-
-    // Initial metrics
-    const initialUpdate = metricsService.simulateMetricsUpdate();
-    updateMetrics(initialUpdate);
-
-    const interval = setInterval(() => {
-      const newMetrics = metricsService.simulateMetricsUpdate();
-      updateMetrics(newMetrics);
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [isRecording, detectionResult, updateMetrics]);
+    if (isRecording) {
+      metricsService.startSession();
+    }
+  }, [isRecording]);
 
   useEffect(() => {
     setSession(prev => ({ ...prev, isRecording }));

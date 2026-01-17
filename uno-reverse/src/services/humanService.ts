@@ -57,12 +57,16 @@ export class HumanDetectionService {
         modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human/models/',
         face: {
           enabled: true,
-          detector: { modelPath: 'blazeface.json' },
+          detector: { 
+            modelPath: 'blazeface.json',
+            return: true, // Return face detection box
+          },
           mesh: { enabled: true },
           iris: { enabled: true },
           emotion: { enabled: true },
           description: { enabled: true },
           antispoof: { enabled: false },
+          gaze: { enabled: true }, // Enable gaze detection for attention tracking
         },
         hand: {
           enabled: true,
@@ -74,12 +78,20 @@ export class HumanDetectionService {
           enabled: true,
           modelPath: 'movenet-lightning.json',
         },
+        gesture: {
+          enabled: true, // Enable gesture detection
+        },
         object: {
           enabled: false,
         },
         segmentation: {
           enabled: false,
         },
+        filter: {
+          enabled: true, // Smooth out jittery tracking
+          equalization: true,
+        },
+        cacheSensitivity: 0.9, // Skip frames if no significant movement
       };
 
       this.human = new Human(config);
@@ -129,6 +141,89 @@ export class HumanDetectionService {
     const face = result.face && result.face.length > 0 ? result.face[0] : null;
     const hand = result.hand && result.hand.length > 0 ? result.hand[0] : null;
     const body = result.body && result.body.length > 0 ? result.body[0] : null;
+    
+    // DEBUG: Log raw Human library result structure
+    console.log('🔬 RAW Human Library Result:', {
+      faceCount: result.face?.length || 0,
+      face: face ? {
+        score: face.score,
+        rotation: face.rotation,
+        emotion: face.emotion,
+        gaze: face.gaze,
+        iris: face.iris,
+        irisLength: face.iris?.length,
+        mesh: face.mesh ? { length: face.mesh.length } : null,
+        age: face.age,
+        gender: face.gender,
+      } : null,
+      handCount: result.hand?.length || 0,
+      bodyCount: result.body?.length || 0,
+      gestures: result.gesture,
+    });
+    
+    // Log specific rotation and emotion values to debug stuck metrics
+    if (face) {
+      console.log('📐 Face Details:', {
+        rotation: {
+          angle: face.rotation?.angle,
+          gaze: face.rotation?.gaze, 
+          matrix: face.rotation?.matrix ? 'exists' : null,
+          pitch: face.rotation?.angle?.pitch,
+          yaw: face.rotation?.angle?.yaw,
+          roll: face.rotation?.angle?.roll,
+        },
+        emotion: Array.isArray(face.emotion) ? face.emotion : face.emotion,
+        iris: {
+          exists: !!face.iris,
+          isArray: Array.isArray(face.iris),
+          length: face.iris?.length,
+          data: face.iris,
+        },
+        gaze: face.gaze,
+      });
+    }
+
+    // Parse emotion - handle both array and object formats
+    let emotionData: any = undefined;
+    if (face?.emotion) {
+      if (Array.isArray(face.emotion)) {
+        // Convert array format to object format
+        emotionData = {};
+        face.emotion.forEach((e: any) => {
+          emotionData[e.emotion] = e.score;
+        });
+      } else {
+        emotionData = face.emotion;
+      }
+    }
+
+    // Extract gaze from rotation.gaze (Human library stores it there)
+    // IMPORTANT: Gaze strength represents SUSTAINED FOCUS/EYE CONTACT
+    // Human library gaze strength is typically 0-1 range but can vary
+    let gazeData = face?.rotation?.gaze || face?.gaze;
+    
+    if (gazeData) {
+      // Normalize gaze strength if it's very small (Human library sometimes returns 0-0.1 range)
+      // We want 0-1 range for our calculations
+      const normalizedStrength = Math.min(1, Math.max(0, gazeData.strength * 10)); // Scale up if too small
+      gazeData = {
+        bearing: gazeData.bearing || 0,
+        strength: normalizedStrength,
+      };
+    } else if (face?.iris && Array.isArray(face.iris) && face.iris.length >= 2) {
+      // Fallback: Use iris positions if available
+      const leftIris = face.iris[0];
+      const rightIris = face.iris[1];
+      const irisCenter = {
+        x: (leftIris.x + rightIris.x) / 2,
+        y: (leftIris.y + rightIris.y) / 2,
+      };
+      const bearing = Math.atan2(irisCenter.y - 0.5, irisCenter.x - 0.5) * (180 / Math.PI);
+      gazeData = { strength: 0.8, bearing };
+    } else if (face) {
+      // Face detected but no gaze/iris data - assume moderate attention
+      gazeData = { strength: 0.5, bearing: 0 };
+    }
 
     return {
       face: {
@@ -136,31 +231,31 @@ export class HumanDetectionService {
         confidence: face?.score,
         rotation: face?.rotation
           ? {
-              pitch: face.rotation.pitch || 0,
-              yaw: face.rotation.yaw || 0,
-              roll: face.rotation.roll || 0,
+              pitch: face.rotation.angle?.pitch || face.rotation.pitch || 0,
+              yaw: face.rotation.angle?.yaw || face.rotation.yaw || 0,
+              roll: face.rotation.angle?.roll || face.rotation.roll || 0,
             }
           : undefined,
-        emotion: face?.emotion
+        emotion: emotionData
           ? {
-              happy: face.emotion.happy || 0,
-              sad: face.emotion.sad || 0,
-              angry: face.emotion.angry || 0,
-              fearful: face.emotion.fearful || 0,
-              disgusted: face.emotion.disgusted || 0,
-              surprised: face.emotion.surprised || 0,
-              neutral: face.emotion.neutral || 0,
+              happy: emotionData.happy || 0,
+              sad: emotionData.sad || 0,
+              angry: emotionData.angry || 0,
+              fearful: emotionData.fearful || 0,
+              disgusted: emotionData.disgusted || 0,
+              surprised: emotionData.surprised || 0,
+              neutral: emotionData.neutral || 0,
             }
           : undefined,
         age: face?.age,
         gender: face?.gender,
-        gaze: face?.gaze
+        gaze: gazeData
           ? {
-              bearing: face.gaze.bearing || 0,
-              strength: face.gaze.strength || 0,
+              bearing: gazeData.bearing || 0,
+              strength: gazeData.strength || 0,
             }
           : undefined,
-        iris: face?.iris && face.iris.length >= 2
+        iris: face?.iris && Array.isArray(face.iris) && face.iris.length >= 2
           ? {
               left: { x: face.iris[0].x || 0, y: face.iris[0].y || 0 },
               right: { x: face.iris[1].x || 0, y: face.iris[1].y || 0 },
@@ -170,11 +265,13 @@ export class HumanDetectionService {
       hand: {
         detected: !!hand,
         confidence: hand?.score,
-        landmarks: hand?.landmarks?.map((lm) => ({
-          x: lm[0] || 0,
-          y: lm[1] || 0,
-          z: lm[2],
-        })),
+        landmarks: Array.isArray(hand?.keypoints) 
+          ? hand.keypoints.map((kp) => ({
+              x: kp.position?.[0] || kp.x || 0,
+              y: kp.position?.[1] || kp.y || 0,
+              z: kp.position?.[2] || kp.z,
+            }))
+          : undefined,
         gestures: hand?.gestures,
       },
       body: {
@@ -213,6 +310,16 @@ export class HumanDetectionService {
       this.isInitialized = false;
       this.lastResult = null;
     }
+  }
+
+  // Expose raw Human instance for drawing utilities
+  getHumanInstance(): Human | null {
+    return this.human;
+  }
+
+  // Expose raw result for drawing utilities
+  getLastRawResult(): Result | null {
+    return this.lastResult;
   }
 }
 
