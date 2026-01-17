@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { CameraFeed } from '@/components/judge/CameraFeed';
 import { MetricsPanel } from '@/components/judge/MetricsPanel';
-import { SessionSummary } from '@/components/judge/SessionSummary';
+import { SessionSummaryInline } from '@/components/judge/SessionSummaryInline';
 import { useCamera } from '@/hooks/useCamera';
 import { useJudgeMetrics } from '@/hooks/useJudgeMetrics';
 import { useHumanDetection } from '@/hooks/useHumanDetection';
@@ -12,10 +12,17 @@ import { transcribingService } from '@/services/transcribingService';
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [sessionSummary, setSessionSummary] = useState<any | null>(null);
+  const [sessionSnapshots, setSessionSnapshots] = useState<any[]>([]);
   const [transcript, setTranscript] = useState<string>('');
+  const [taggedTranscript, setTaggedTranscript] = useState<string>('');
+  const [segments, setSegments] = useState<any[]>([]);
   const [feedback, setFeedback] = useState<string>('');
-  const [score, setScore] = useState<number | null>(null);
+  const [presentationScore, setPresentationScore] = useState<number | null>(null);
+  const [questionCount, setQuestionCount] = useState<number>(0);
+  const [questionQuality, setQuestionQuality] = useState<number>(0);
+  const [questionInsights, setQuestionInsights] = useState<string>('');
   const { cameraState, videoRef, startCamera, stopCamera } = useCamera();
 
   // Auto-start camera on mount
@@ -30,7 +37,19 @@ const Index = () => {
     isRecording,
   });
 
-  const { session } = useJudgeMetrics(isRecording, detectionResult);
+  const { session, updateMetrics } = useJudgeMetrics(isRecording, detectionResult);
+
+  // Update question quality in metrics when it changes
+  useEffect(() => {
+    if (questionQuality > 0 && !isRecording) {
+      const updatedMetrics = {
+        ...session.metrics,
+        questionQuality: questionQuality,
+      };
+      updateMetrics(updatedMetrics, null);
+      console.log('📊 Updated metrics with question quality:', updatedMetrics);
+    }
+  }, [questionQuality, isRecording, session.metrics, updateMetrics]);
 
   const handleToggleRecording = async () => {
     console.log('🎙️ Toggling recording. Current state:', isRecording);
@@ -38,43 +57,117 @@ const Index = () => {
       if (isRecording) {
         console.log('⏹️ Stopping recording...');
         
-        // Stop face detection first (synchronous)
+        // Show loading state immediately
+        setIsProcessing(true);
+        
+        // Stop face detection
         setIsRecording(false);
         
-        // Generate summary (synchronous)
-        const summary = metricsService.generateSessionSummary();
-        if (summary) {
-          console.log('📝 Session summary generated:', summary);
-          setSessionSummary(summary);
+        // Generate session summary from face metrics
+        const faceSummary = metricsService.generateSessionSummary();
+        console.log('📝 Face metrics summary generated:', faceSummary);
+        
+        // Prepare face metrics for backend presentation score calculation
+        const faceMetricsForScore = faceSummary ? {
+          avgCuriosity: faceSummary.averageMetrics.curiosityIndex,
+          avgAttention: faceSummary.averageMetrics.attentionStability,
+          avgVibe: faceSummary.averageMetrics.vibeAlignment,
+          trend: faceSummary.metricTrends.curiosityIndex.trend  // Use curiosity trend as representative
+        } : {};
+        
+        // Wait for transcription analysis (this includes AI processing)
+        console.log('⏳ Waiting for transcription and AI analysis...');
+        const result = await transcribingService.stopRecording(faceMetricsForScore);
+        
+        if (result) {
+          console.log('✅ All AI analysis complete:', result);
+          
+          // Store all the results
+          setTranscript(result.transcript);
+          setTaggedTranscript(result.taggedTranscript || result.transcript);
+          setSegments(result.segments || []);
+          setFeedback(result.feedback);
+          setPresentationScore(result.presentationScore);
+          setQuestionCount(result.questionCount);
+          setQuestionInsights(result.questionInsights);
+          
+          // Update question quality last to trigger the useEffect
+          setQuestionQuality(result.questionQuality);
+          
+          // Use presentation score as the final score
+          // Backend already calculated this from all metrics:
+          // - Face metrics (40%): curiosity, attention, vibe
+          // - Question quality (30%): AI-analyzed question depth
+          // - Transcript quality (20%): length and completeness
+          // - Trend (10%): improving/stable/declining
+          let finalScore = result.presentationScore;
+          
+          console.log('🎯 Final comprehensive score:', finalScore);
+          console.log('  (calculated from backend using all collected metrics)');
+          
+          // Update the displayed metrics immediately with question quality
+          const updatedMetrics = {
+            ...faceSummary.averageMetrics,
+            questionQuality: result.questionQuality,
+          };
+          updateMetrics(updatedMetrics, null);
+          
+          // Get session snapshots for the chart
+          const snapshots = metricsService.getSessionSnapshots();
+          console.log('📸 Session snapshots retrieved:', snapshots.length);
+          
+          // Update summary with all data including question metrics
+          const comprehensiveSummary = {
+            ...faceSummary,
+            transcript: result.transcript,
+            taggedTranscript: result.taggedTranscript || result.transcript,
+            segments: result.segments || [],
+            feedback: result.feedback,
+            presentationScore: result.presentationScore,
+            questionCount: result.questionCount,
+            questionQuality: result.questionQuality,
+            questionInsights: result.questionInsights,
+            finalScore: finalScore,
+            averageMetrics: updatedMetrics,
+          };
+          
+          setSessionSummary(comprehensiveSummary);
+          setSessionSnapshots(snapshots);
+        } else {
+          console.warn('⚠️ No transcription result received');
+          setTranscript('');
+          setFeedback('');
+          setPresentationScore(null);
+          
+          // Still show face metrics summary if available
+          if (faceSummary) {
+            setSessionSummary(faceSummary);
+          }
         }
         
-        // Stop transcription (async, but don't block UI)
-        transcribingService.stopRecording()
-          .then((result) => {
-            setTranscript(result.transcript);
-            setFeedback(result.feedback);
-            setScore(result.score);
-          })
-          .catch((error) => {
-            setTranscript('');
-            setFeedback('');
-            setScore(null);
-            console.error('⚠️ Failed to stop transcription:', error);
-          });
+        // Hide loading state
+        setIsProcessing(false);
       } else {
         console.log('▶️ Starting recording...');
         
         // Clear previous data
         setTranscript('');
+        setTaggedTranscript('');
+        setSegments([]);
         setSessionSummary(null);
-        setScore(null)
+        setSessionSnapshots([]);
+        setPresentationScore(null);
+        setQuestionCount(0);
+        setQuestionQuality(0);
+        setQuestionInsights('');
         setFeedback('');
+        setIsProcessing(false);
         
-        // Start face detection immediately (don't wait for transcription)
+        // Start face detection immediately
         setIsRecording(true);
         console.log('✅ Recording state set to true - face detection should start');
         
-        // Start transcription in parallel (don't block face detection)
+        // Start transcription in parallel
         transcribingService.startRecording((text, chunkIndex) => {
           console.log(`📄 Transcription chunk ${chunkIndex}: ${text}`);
         })
@@ -87,7 +180,7 @@ const Index = () => {
       }
     } catch (error) {
       console.error('❌ Error toggling recording:', error);
-      // Even if there's an error, try to toggle recording state for face detection
+      setIsProcessing(false);
       setIsRecording(!isRecording);
     }
   };
@@ -156,87 +249,88 @@ const Index = () => {
                 </div>
               </motion.div>
 
-              {/* Score display - only show when there's a score and not recording */}
-              {score !== null && !isRecording && (
+              {/* Loading state - show while processing */}
+              {isProcessing && !isRecording && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ delay: 0.3 }}
-                  className="glass-panel p-6 flex items-center justify-center"
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                  className="glass-panel p-10 flex flex-col items-center justify-center"
                 >
-                  <div className="text-center">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wider">Score</span>
-                    <div className="text-5xl font-bold text-foreground mt-1">
-                      {score}
-                      <span className="text-2xl text-muted-foreground">/100</span>
-                    </div>
+                  <div className="relative w-20 h-20 mb-6">
+                    <div className="absolute inset-0 border-4 border-primary/10 rounded-full"></div>
+                    <motion.div 
+                      className="absolute inset-0 border-4 border-transparent border-t-primary rounded-full"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    />
+                    <div className="absolute inset-2 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-md" />
+                  </div>
+                  <h3 className="text-xl font-display font-bold text-foreground mb-3 tracking-tight">Analyzing Your Pitch...</h3>
+                  <div className="space-y-2 text-sm text-muted-foreground text-center">
+                    <motion.p
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="flex items-center justify-center gap-2 font-medium"
+                    >
+                      <span className="text-green-400">✓</span> Processing judge reactions
+                    </motion.p>
+                    <motion.p
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="flex items-center justify-center gap-2 font-medium"
+                    >
+                      <span className="text-green-400">✓</span> Transcribing pitch audio
+                    </motion.p>
+                    <motion.p
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="flex items-center justify-center gap-2 animate-pulse font-medium"
+                    >
+                      <span className="text-primary">⏳</span> Analyzing judge engagement
+                    </motion.p>
+                    <motion.p
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="flex items-center justify-center gap-2 animate-pulse font-medium"
+                    >
+                      <span className="text-primary">⏳</span> Generating improvement insights
+                    </motion.p>
+                    <motion.p
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.5 }}
+                      className="flex items-center justify-center gap-2 animate-pulse font-medium"
+                    >
+                      <span className="text-primary">⏳</span> Calculating pitch effectiveness
+                    </motion.p>
                   </div>
                 </motion.div>
               )}
 
-              {/* Feedback box - only show when there's feedback and not recording */}
-              {feedback && !isRecording && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ delay: 0.4 }}
-                  className="glass-panel p-4"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-foreground">Feedback</span>
-                    <span className="text-xs text-muted-foreground">
-                      get good.
-                    </span>
-                  </div>
-                  <div className="bg-background/50 rounded-lg p-3 max-h-64 overflow-y-auto">
-                    <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
-                      {feedback}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Transcript box - only show when there's a transcript and not recording */}
-              {transcript && !isRecording && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ delay: 0.5 }}
-                  className="glass-panel p-4"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-foreground">Transcript</span>
-                    <span className="text-xs text-muted-foreground">
-                      {transcript.length} characters
-                    </span>
-                  </div>
-                  <div className="bg-background/50 rounded-lg p-3 max-h-48 overflow-y-auto">
-                    <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
-                      {transcript}
-                    </p>
-                  </div>
-                </motion.div>
+              {/* Score display - only show when there's a score and not recording/processing */}
+              
+              {/* Session Summary - Inline after recording ends */}
+              {sessionSummary && !isRecording && !isProcessing && (
+                <SessionSummaryInline 
+                  summary={sessionSummary} 
+                  snapshots={sessionSnapshots}
+                />
               )}
             </motion.div>
 
-            {/* Metrics Panel */}
-            <MetricsPanel session={session} />
+            {/* Metrics Panel - hide when showing summary */}
+            {(!sessionSummary || isRecording) && (
+              <MetricsPanel session={session} />
+            )}
           </div>
         </div>
       </main>
-
-      {/* Session Summary Modal */}
-      <AnimatePresence>
-        {sessionSummary && (
-          <SessionSummary
-            summary={sessionSummary}
-            onClose={() => setSessionSummary(null)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 };
