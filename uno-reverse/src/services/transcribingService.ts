@@ -75,7 +75,7 @@ class TranscribingService {
     this.startNewRecorder();
   }
 
-  async stopRecording(): Promise<string | null> {
+  async stopRecording(): Promise<{ transcript: string; feedback: string; score: number } | null> {
     if (!this.isRecording) {
       console.warn('Not currently recording');
       return null;
@@ -106,24 +106,24 @@ class TranscribingService {
     }
     console.log('All chunks processed');
 
-    // Collate all transcripts from the backend
-    const transcript = await this.collateTranscripts();
+    // Collate all transcripts and get feedback from the backend
+    const result = await this.collateTranscripts();
 
     this.cleanup();
 
-    return transcript;
+    return result;
   }
 
-  private async collateTranscripts(): Promise<string | null> {
+  private async collateTranscripts(): Promise<{ transcript: string; feedback: string; score: number } | null> {
     if (!this.sessionId) {
       console.warn('No session ID available');
       return null;
     }
 
     try {
-      console.log(`Fetching transcripts for session: ${this.sessionId}`);
+      console.log(`Fetching transcripts and feedback for session: ${this.sessionId}`);
 
-      const response = await fetch(`${BACKEND_URL}/get-transcripts`, {
+      const response = await fetch(`${BACKEND_URL}/gemini-feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: this.sessionId }),
@@ -131,20 +131,20 @@ class TranscribingService {
 
       if (!response.ok) {
         const error = await response.json();
-        console.error('Failed to get transcripts:', error);
+        console.error('Failed to get feedback:', error);
         return null;
       }
 
       const data = await response.json();
 
       if (data.success) {
-        console.log(`Got full transcript (${data.chunkCount} chunks, ${data.transcript.length} chars)`);
-        return data.transcript;
+        console.log(`Got transcript (${data.transcript.length} chars), feedback, and score: ${data.score}`);
+        return { transcript: data.transcript, feedback: data.feedback, score: data.score };
       }
 
       return null;
     } catch (error) {
-      console.error('Error fetching transcripts:', error);
+      console.error('Error fetching feedback:', error);
       return null;
     }
   }
