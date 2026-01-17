@@ -119,7 +119,7 @@ def transcribe_chunk():
 
 @app.route("/gemini-feedback", methods=["POST"])
 def gemini_feedback():
-    """Collect transcripts and generate feedback using Google Gemini"""
+    """Collect transcripts and generate comprehensive feedback using Google Gemini"""
     try:
         data = request.get_json() or {}
         session_id = data.get('sessionId', 'default')
@@ -137,30 +137,34 @@ def gemini_feedback():
         # Configuration for Gemini
         system_prompt = """
         ### ROLE
-        You are a "Reverse Judge"—a witty, slightly arrogant, but ultimately helpful presentation coach. 
-        You are judging a speech as if the tables have turned and YOU are judging the ones who gave feedback.
+        You are a brutally honest pitch coach analyzing how judges reacted to a hackathon presentation.
+        Your job is to help the product makers understand what worked, what bombed, and how to improve.
 
         ### TONE & PERSONALITY
-        - Sarcastic, funny, and "nitpicky." 
-        - Flame the user for small mistakes (stuttering, buzzwords) but pivot to supportive advice.
-        - Never mention you are an AI. Do not be generic.
+        - Direct, witty, and constructive—no sugarcoating, but always helpful
+        - Roast the presenters' mistakes (not the judges) but pivot to actionable advice
+        - Focus on judge engagement patterns: Did they ask questions? Did they sound interested?
+        - Never mention you are an AI. Keep it real and specific.
 
         ### EVALUATION CRITERIA
-        1. Content & Structure: Did they explain the "How" or just the "Why"?
-        2. Clarity & Coherence: Are transcription errors hiding a lack of thought?
-        3. Engagement & Impact: Was there a "hook" or just boredom?
-        4. The "Nitpick" List: Call out verbal tics and buzzword abuse.
+        Analyze the transcript to understand:
+        1. **Judge Engagement**: Were judges asking questions? Nodding along? Or silent and confused?
+        2. **Pitch Clarity**: Did the presenters explain the "How" clearly, or just buzzword salad?
+        3. **Hook Factor**: Did judges seem excited (interrupting with questions) or bored (crickets)?
+        4. **Red Flags**: Identify hesitations, unclear answers, or missed opportunities to engage judges
 
         ### OUTPUT FORMAT
-        - The Roasting (Summary): A 2-sentence witty "burn".
-        - The Deep Dive: 4 Bullet points for the criteria above.
-        - The "Judge's Mercy" (Action Plan): 3 specific actionable steps.
+        - **The Reality Check** (2 sentences): A direct assessment of how the judges received the pitch
+        - **What Worked / What Flopped** (4 bullet points): Specific examples from the transcript
+        - **Your Game Plan** (3 actionable steps): How to pitch better and engage judges more effectively next time
+        
+        Remember: The goal is to help presenters understand judge reactions and improve their pitch game.
         """
 
-        # Call Gemini API
+        # Call Gemini API for feedback
         response = gemini_client.models.generate_content(
             model="gemini-2.0-flash",
-            contents=f"Please analyze this speech transcript and provide feedback:\n\n{transcript}",
+            contents=f"Analyze this hackathon pitch transcript. Focus on how the judges reacted and what the presenters could improve:\n\n{transcript}",
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 temperature=0.7,
@@ -169,19 +173,76 @@ def gemini_feedback():
         )
 
         feedback = response.text
-
         logger.info("Gemini feedback generated successfully")
 
-        # Second call to get a numeric score
-        score_prompt = """You are a judge scoring a hackathon presentation.
-        Based on the transcript provided, give a single number score from 0-100.
-        Consider: content quality, clarity, structure, engagement, and overall impact.
+        # Analyze questions from transcript
+        question_prompt = """You are analyzing a hackathon pitch to understand how engaged the judges were based on their questions.
+
+        Your task:
+        1. Identify questions asked BY THE JUDGE (not by the presenter)
+        2. Count the total number of distinct questions
+        3. Evaluate how engaged/interested the judges seemed (0-100 scale)
+        
+        Judge Engagement Scoring Guidelines:
+        - 90-100: Judges asked deep, probing questions about implementation, scalability, challenges (shows HIGH interest)
+        - 70-89: Judges asked clarifying questions about features, use cases, methodology (shows solid interest)
+        - 50-69: Judges asked basic questions (what/why/how) but nothing deep (moderate curiosity)
+        - 30-49: Judges asked few surface-level or yes/no questions (low engagement)
+        - 0-29: No meaningful questions or only procedural ones (judges weren't hooked)
+        
+        Context: More/deeper questions = pitch successfully engaged judges. Fewer questions = presenters need to improve hook.
+
+        IMPORTANT: Respond ONLY in this exact format:
+        QUESTION_COUNT: [number]
+        QUALITY_SCORE: [number 0-100]
+        INSIGHTS: [1-2 sentence analysis telling presenters what judge questions reveal about their pitch effectiveness]"""
+
+        question_response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=f"Analyze how engaged the judges were based on their questions in this hackathon pitch:\n\n{transcript}",
+            config=types.GenerateContentConfig(
+                system_instruction=question_prompt,
+                temperature=0.3,
+                max_output_tokens=200
+            )
+        )
+
+        # Parse question analysis
+        question_count = 0
+        question_quality = 50
+        question_insights = "Analyzing questions..."
+        
+        try:
+            lines = question_response.text.strip().split('\n')
+            for line in lines:
+                if line.startswith('QUESTION_COUNT:'):
+                    question_count = int(line.split(':')[1].strip())
+                elif line.startswith('QUALITY_SCORE:'):
+                    question_quality = int(line.split(':')[1].strip())
+                    question_quality = max(0, min(100, question_quality))
+                elif line.startswith('INSIGHTS:'):
+                    question_insights = line.split(':', 1)[1].strip()
+        except Exception as parse_error:
+            logger.warning(f"Failed to parse question analysis: {parse_error}")
+
+        logger.info(f"Question Analysis: {question_count} questions, quality score: {question_quality}")
+
+        # Get presentation quality score
+        score_prompt = """You are evaluating how well a hackathon team pitched their product to judges.
+        Based on the transcript, give a single score from 0-100 measuring pitch effectiveness.
+        
+        Consider:
+        - Clarity: Did they explain the product clearly?
+        - Structure: Was it organized or all over the place?
+        - Engagement: Did judges seem interested (asking questions, reacting)?
+        - Confidence: Did presenters sound prepared or fumbling?
+        - Impact: Would judges remember this pitch?
 
         IMPORTANT: Respond with ONLY a number between 0 and 100. No other text."""
 
         score_response = gemini_client.models.generate_content(
             model="gemini-2.0-flash",
-            contents=f"Score this presentation transcript from 0-100:\n\n{transcript}",
+            contents=f"Score how effectively this team pitched their product (0-100):\n\n{transcript}",
             config=types.GenerateContentConfig(
                 system_instruction=score_prompt,
                 temperature=0.3,
@@ -189,15 +250,15 @@ def gemini_feedback():
             )
         )
 
-        # Parse the score, default to 50 if parsing fails
+        # Parse the presentation score
+        presentation_score = 50
         try:
-            score = int(score_response.text.strip())
-            score = max(0, min(100, score))  # Clamp between 0-100
+            presentation_score = int(score_response.text.strip())
+            presentation_score = max(0, min(100, presentation_score))
         except ValueError:
             logger.warning(f"Failed to parse score: {score_response.text}")
-            score = 50
 
-        logger.info(f"Score generated: {score}")
+        logger.info(f"Presentation score: {presentation_score}")
 
         # Clear storage
         del transcript_storage[session_id]
@@ -206,7 +267,10 @@ def gemini_feedback():
         return jsonify({
             "feedback": feedback,
             "transcript": transcript,
-            "score": score,
+            "presentationScore": presentation_score,
+            "questionCount": question_count,
+            "questionQuality": question_quality,
+            "questionInsights": question_insights,
             "success": True
         }), 200
 

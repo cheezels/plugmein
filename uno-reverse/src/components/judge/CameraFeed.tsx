@@ -193,23 +193,27 @@ export const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
                 className="absolute inset-0 pointer-events-none"
               >
-                {/* Corner brackets */}
-                <div className="absolute top-4 left-4 w-12 h-12 border-l-2 border-t-2 border-primary/60" />
-                <div className="absolute top-4 right-4 w-12 h-12 border-r-2 border-t-2 border-primary/60" />
-                <div className="absolute bottom-4 left-4 w-12 h-12 border-l-2 border-b-2 border-primary/60" />
-                <div className="absolute bottom-4 right-4 w-12 h-12 border-r-2 border-b-2 border-primary/60" />
+                {/* Corner brackets with glow */}
+                <div className="absolute top-5 left-5 w-14 h-14 border-l-[3px] border-t-[3px] border-primary/70 shadow-lg shadow-primary/30" />
+                <div className="absolute top-5 right-5 w-14 h-14 border-r-[3px] border-t-[3px] border-primary/70 shadow-lg shadow-primary/30" />
+                <div className="absolute bottom-5 left-5 w-14 h-14 border-l-[3px] border-b-[3px] border-primary/70 shadow-lg shadow-primary/30" />
+                <div className="absolute bottom-5 right-5 w-14 h-14 border-r-[3px] border-b-[3px] border-primary/70 shadow-lg shadow-primary/30" />
                 
                 {/* Recording indicator */}
-                <div className="absolute top-6 right-6 flex items-center gap-2 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                  <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                  <span className="text-xs font-medium text-foreground">REC</span>
+                <div className="absolute top-6 right-6 flex items-center gap-2.5 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-red-500/30 shadow-lg shadow-red-500/20">
+                  <div className="relative">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                    <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping opacity-75" />
+                  </div>
+                  <span className="text-xs font-display font-bold text-foreground tracking-wider">REC</span>
                 </div>
 
                 {/* Scan line effect */}
                 <motion.div
-                  className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary/40 to-transparent"
+                  className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary/50 to-transparent shadow-lg shadow-primary/50"
                   animate={{ top: ['0%', '100%'] }}
                   transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
                 />
@@ -227,28 +231,31 @@ export const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(
 
         {/* Controls overlay */}
         {cameraState.isActive && (
-          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex items-center justify-center gap-4">
+          <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex items-center justify-center gap-5">
                 <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={onToggleRecording}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                  className={`relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
                     isRecording
-                      ? 'bg-destructive'
-                      : 'bg-white/10 border-2 border-white/30'
+                      ? 'bg-gradient-to-br from-red-500 to-red-600 shadow-lg shadow-red-500/50'
+                      : 'bg-white/10 border-2 border-white/40 backdrop-blur-md shadow-lg'
                   }`}
                 >
                   {isRecording ? (
-                    <div className="w-5 h-5 bg-white rounded-sm" />
+                    <>
+                      <div className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-25" />
+                      <div className="w-6 h-6 bg-white rounded-md" />
+                    </>
                   ) : (
-                    <Circle className="w-6 h-6 text-destructive fill-destructive" />
+                    <Circle className="w-7 h-7 text-red-500 fill-red-500" />
                   )}
                 </motion.button>
                 
                 {/* Recording Label */}
-                <span className="text-sm text-foreground/80">
+                <span className="text-sm font-display font-semibold text-foreground">
                   {isRecording ? 'Stop Recording' : 'Start Recording'}
                 </span>
               </div>
@@ -258,17 +265,17 @@ export const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(
                 <motion.button
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
+                  transition={{ delay: 0.3, ease: [0.4, 0, 0.2, 1] }}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setDeveloperMode(!developerMode)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold transition-all duration-300 ${
                     developerMode
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-white/10 backdrop-blur-sm text-foreground hover:bg-white/20'
+                      ? 'bg-gradient-to-r from-primary to-purple-500 text-white shadow-lg shadow-primary/50'
+                      : 'bg-white/10 backdrop-blur-md text-foreground border border-white/20 hover:bg-white/20'
                   }`}
                 >
-                  <Code className="w-3.5 h-3.5" />
+                  <Code className="w-4 h-4" />
                   Developer Mode {developerMode ? 'ON' : 'OFF'}
                 </motion.button>
               )}

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { X, TrendingUp, TrendingDown, Minus, Clock, Hash } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Clock, Hash, MessageSquare, Award } from 'lucide-react';
 
 interface SessionSummary {
   startTime: Date;
@@ -18,6 +18,13 @@ interface SessionSummary {
     vibeAlignment: { min: number; max: number; trend: string };
   };
   keyInsights: string[];
+  finalScore?: number;
+  presentationScore?: number;
+  questionCount?: number;
+  questionQuality?: number;
+  questionInsights?: string;
+  feedback?: string;
+  transcript?: string;
 }
 
 interface SessionSummaryProps {
@@ -53,30 +60,48 @@ export function SessionSummary({ summary, onClose }: SessionSummaryProps) {
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        transition={{ type: "spring", stiffness: 200, damping: 25 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-panel p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="glass-panel p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl"
+        style={{
+          boxShadow: 'var(--shadow-elevated)',
+        }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">Session Summary</h2>
-            <p className="text-sm text-muted-foreground mt-1">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex-1">
+            <h2 className="text-3xl font-display font-bold text-foreground tracking-tight">Session Summary</h2>
+            <p className="text-sm text-muted-foreground mt-2 font-medium">
               {summary.startTime.toLocaleTimeString()} - {summary.endTime.toLocaleTimeString()}
             </p>
           </div>
+          {summary.finalScore !== undefined && (
+            <div className="flex items-center gap-4 mr-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl blur-xl opacity-40" />
+                <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg">
+                  <Award className="w-7 h-7 text-white" />
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Final Score</div>
+                <div className="text-4xl font-display font-bold gradient-text">{summary.finalScore}<span className="text-xl text-muted-foreground font-sans">/100</span></div>
+              </div>
+            </div>
+          )}
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            className="p-2.5 hover:bg-white/10 rounded-xl transition-all duration-200 hover:scale-110"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Session Info */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="glass-panel p-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               <Clock className="w-4 h-4" />
@@ -91,11 +116,47 @@ export function SessionSummary({ summary, onClose }: SessionSummaryProps) {
             </div>
             <p className="text-2xl font-bold">{summary.totalSnapshots}</p>
           </div>
+          {summary.presentationScore !== undefined && (
+            <div className="glass-panel p-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <Award className="w-4 h-4" />
+                <span className="text-sm">Pitch Score</span>
+              </div>
+              <p className="text-2xl font-bold">{summary.presentationScore}</p>
+            </div>
+          )}
+          {summary.questionCount !== undefined && (
+            <div className="glass-panel p-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <MessageSquare className="w-4 h-4" />
+                <span className="text-sm">Questions</span>
+              </div>
+              <p className="text-2xl font-bold">{summary.questionCount}</p>
+            </div>
+          )}
         </div>
+
+        {/* Judge Engagement Analysis - Show first if available */}
+        {summary.questionQuality !== undefined && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-3">Judge Engagement</h3>
+            <div className="glass-panel p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-medium">Engagement Level</span>
+                <span className={`text-3xl font-bold ${getScoreColor(summary.questionQuality)}`}>
+                  {summary.questionQuality}
+                </span>
+              </div>
+              {summary.questionInsights && (
+                <p className="text-sm text-muted-foreground italic">{summary.questionInsights}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Average Metrics */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-3">Average Scores</h3>
+          <h3 className="text-lg font-semibold mb-3">Face Detection Metrics</h3>
           <div className="space-y-3">
             {/* Curiosity Index */}
             <div className="glass-panel p-4">
@@ -147,6 +208,18 @@ export function SessionSummary({ summary, onClose }: SessionSummaryProps) {
           </div>
         </div>
 
+        {/* Pitch Improvement Feedback */}
+        {summary.feedback && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-3">How to Improve Your Pitch</h3>
+            <div className="glass-panel p-4 max-h-64 overflow-y-auto">
+              <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                {summary.feedback}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Key Insights */}
         <div>
           <h3 className="text-lg font-semibold mb-3">Key Insights</h3>
@@ -168,7 +241,7 @@ export function SessionSummary({ summary, onClose }: SessionSummaryProps) {
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="w-full mt-6 px-4 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+          className="w-full mt-8 btn-primary py-4 text-base font-display"
         >
           Close Summary
         </button>

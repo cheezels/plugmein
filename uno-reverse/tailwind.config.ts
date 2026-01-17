@@ -15,6 +15,8 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        display: ['Sora', 'Inter', 'sans-serif'],
+        mono: ['Space Grotesk', 'Courier New', 'monospace'],
       },
       colors: {
         border: "hsl(var(--border))",
