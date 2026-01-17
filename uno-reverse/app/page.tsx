@@ -1,20 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-
-type Screenshot = {
-  id: string;
-  image: string;
-  emotion: string;
-  timestamp: number;
-};
-
-type JudgeResult = {
-  transcript: string;
-  emotion: string;
-  score: number;
-  screenshots: Screenshot[];
-};
+import { useState, useRef, useMemo } from "react";
+import { TranscribingService, JudgeResult } from "./services/TranscribingService";
+import { CameraService, Screenshot } from "./services/CameraService";
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
@@ -22,113 +10,32 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"score" | "screenshots" | "transcript">("score");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const screenshotsRef = useRef<Screenshot[]>([]);
-  const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const captureScreenshot = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-
-    if (!ctx) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-
-    //TODO: Replace with actual emotion detection logic
-    const image = canvas.toDataURL("image/jpeg", 0.8);
-
-    const emotions = ["Confused", "Skeptical", "Impressed", "Bored", "Surprised", "Amused"];
-    const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
-
-    const screenshot: Screenshot = {
-      id: Date.now().toString(),
-      image,
-      emotion: randomEmotion,
-      timestamp: Date.now(),
-    };
-
-    screenshotsRef.current.push(screenshot);
-  }, []);
+  
+  const cameraService = useMemo(() => new CameraService(), []);
+  const transcribingService = useMemo(() => new TranscribingService(cameraService), [cameraService]);
 
   const startRecording = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-      screenshotsRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" });
-        console.log("Recording stopped, blob size:", blob.size);
-
-        //TODO: Replace with actual analysis logic
-        setResult({
-          transcript: `Judge: "So tell me about your project..."
-
-You: "We built an app that uses AI to analyze hackathon judges."
-
-Judge: "That's... interesting. How does it work exactly?"
-
-You: "It records video and audio, then uses computer vision and speech-to-text to analyze your reactions and feedback."
-
-Judge: "Wait, are you recording me right now?"
-
-You: "...maybe."
-
-Judge: "I'm not sure how I feel about this."`,
-          emotion: "Skeptical",
-          score: 6,
-          screenshots: screenshotsRef.current,
-        });
-      };
-
-      captureIntervalRef.current = setInterval(captureScreenshot, 3000);
-
-      mediaRecorder.start();
+      await transcribingService.startRecording(videoRef.current, canvasRef.current);
       setIsRecording(true);
       setResult(null);
       setActiveTab("score");
     } catch (err) {
-      console.error("Error accessing camera/microphone:", err);
+      console.error("Error starting recording:", err);
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+  const stopRecording = async () => {
+    if (!videoRef.current) return;
+
+    try {
+      const judgeResult = await transcribingService.stopRecording(videoRef.current);
       setIsRecording(false);
-
-      if (captureIntervalRef.current) {
-        clearInterval(captureIntervalRef.current);
-        captureIntervalRef.current = null;
-      }
-
-      const stream = videoRef.current?.srcObject as MediaStream;
-      stream?.getTracks().forEach((track) => track.stop());
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
+      setResult(judgeResult);
+    } catch (err) {
+      console.error("Error stopping recording:", err);
     }
   };
 
