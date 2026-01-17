@@ -1,0 +1,10 @@
+flask==3.0.0
+flask-cors==4.0.0
+openai==1.12.0
+whisper==1.1.10
+openai-whisper==20231117
+pydub==0.25.1
+python-dotenv==1.0.0
+torch==2.1.2
+torchaudio==2.1.2
+numpy==1.24.3
