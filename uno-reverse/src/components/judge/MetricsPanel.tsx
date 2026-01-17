@@ -1,14 +1,13 @@
 import { motion } from 'framer-motion';
 import { JudgeSession } from '@/types/judge.types';
 import { MetricCard } from './MetricCard';
-import { OverallScore } from './OverallScore';
 
 interface MetricsPanelProps {
   session: JudgeSession;
 }
 
 export function MetricsPanel({ session }: MetricsPanelProps) {
-  const { explanations, overallScore, isRecording } = session;
+  const { explanations, isRecording } = session;
 
   return (
     <motion.div
@@ -25,9 +24,6 @@ export function MetricsPanel({ session }: MetricsPanelProps) {
         </div>
       </div>
 
-      {/* Overall Score */}
-      <OverallScore score={overallScore} isRecording={isRecording} />
-
       {/* Metrics Grid */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1">
         {explanations.length > 0 ? (
@@ -36,6 +32,7 @@ export function MetricsPanel({ session }: MetricsPanelProps) {
               key={explanation.metric}
               explanation={explanation}
               delay={index * 0.1}
+              isWorkInProgress={explanation.metric === 'questionQuality'}
             />
           ))
         ) : (
