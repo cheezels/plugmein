@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { CameraFeed } from '@/components/judge/CameraFeed';
@@ -9,6 +9,7 @@ import { useJudgeMetrics } from '@/hooks/useJudgeMetrics';
 import { useHumanDetection } from '@/hooks/useHumanDetection';
 import { metricsService } from '@/services/metricsService';
 import { transcribingService } from '@/services/transcribingService';
+import { io } from 'socket.io-client';
 
 const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -16,8 +17,107 @@ const Index = () => {
   const [transcript, setTranscript] = useState<string>('');
   const [feedback, setFeedback] = useState<string>('');
   const [score, setScore] = useState<number | null>(null);
+  const [sessionId] = useState(() => {
+    // Generate a random 6-character alphanumeric session ID (e.g., "A2K9X7")
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let id = '';
+    for (let i = 0; i < 6; i++) {
+      id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
+  });
   const { cameraState, videoRef, startCamera, stopCamera } = useCamera();
+  const socketRef = useRef(null);
 
+  // Initialize WebSocket connection to backend
+  useEffect(() => {
+    // Get backend URL (works for both localhost and network IP)
+    const backendUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:8081' 
+      : `http://${window.location.hostname}:8081`;
+    
+    const newSocket = io(backendUrl);
+    socketRef.current = newSocket;
+    
+    newSocket.on('connect', () => {
+      console.log('✅ Connected to backend WebSocket');
+      newSocket.emit('join_session', { 
+        sessionId: sessionId, 
+        deviceType: 'presenter' 
+      });
+    });
+    
+    // Listen for remote toggle commands from mobile controller
+    newSocket.on('toggle_recording_command', () => {
+      console.log('📱 Remote toggle command received from mobile controller');
+      // Toggle recording state (which will trigger handleToggleRecording via the button)
+      setIsRecording(prev => !prev);
+    });
+    
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [sessionId]);
+  
+  // When isRecording state changes, execute the recording logic
+  useEffect(() => {
+    const executeRecordingLogic = async () => {
+      // Broadcast recording state to all connected devices (especially mobile controller)
+      if (socketRef.current) {
+        socketRef.current.emit('recording_state_update', {
+          sessionId: sessionId,
+          isRecording: isRecording
+        });
+      }
+      
+      if (isRecording) {
+        // Starting recording
+        console.log('▶️ Starting recording...');
+        
+        // Clear previous data
+        setTranscript('');
+        setSessionSummary(null);
+        setScore(null);
+        setFeedback('');
+        
+        // Start transcription
+        try {
+          await transcribingService.startRecording((text, chunkIndex) => {
+            console.log(`📄 Transcription chunk ${chunkIndex}: ${text}`);
+          });
+          console.log('✅ Transcription started successfully');
+        } catch (error) {
+          console.error('⚠️ Failed to start transcription:', error);
+        }
+      } else {
+        // Stopping recording
+        console.log('⏹️ Stopping recording...');
+        
+        // Generate summary
+        const summary = metricsService.generateSessionSummary();
+        if (summary) {
+          console.log('📝 Session summary generated:', summary);
+          setSessionSummary(summary);
+        }
+        
+        // Stop transcription
+        try {
+          const result = await transcribingService.stopRecording();
+          setTranscript(result.transcript);
+          setFeedback(result.feedback);
+          setScore(result.score);
+        } catch (error) {
+          setTranscript('');
+          setFeedback('');
+          setScore(null);
+          console.error('⚠️ Failed to stop transcription:', error);
+        }
+      }
+    };
+    
+    executeRecordingLogic();
+  }, [isRecording]);
+  
   // Auto-start camera on mount
   useEffect(() => {
     startCamera();
@@ -33,63 +133,7 @@ const Index = () => {
   const { session } = useJudgeMetrics(isRecording, detectionResult);
 
   const handleToggleRecording = async () => {
-    console.log('🎙️ Toggling recording. Current state:', isRecording);
-    try {
-      if (isRecording) {
-        console.log('⏹️ Stopping recording...');
-        
-        // Stop face detection first (synchronous)
-        setIsRecording(false);
-        
-        // Generate summary (synchronous)
-        const summary = metricsService.generateSessionSummary();
-        if (summary) {
-          console.log('📝 Session summary generated:', summary);
-          setSessionSummary(summary);
-        }
-        
-        // Stop transcription (async, but don't block UI)
-        transcribingService.stopRecording()
-          .then((result) => {
-            setTranscript(result.transcript);
-            setFeedback(result.feedback);
-            setScore(result.score);
-          })
-          .catch((error) => {
-            setTranscript('');
-            setFeedback('');
-            setScore(null);
-            console.error('⚠️ Failed to stop transcription:', error);
-          });
-      } else {
-        console.log('▶️ Starting recording...');
-        
-        // Clear previous data
-        setTranscript('');
-        setSessionSummary(null);
-        setScore(null)
-        setFeedback('');
-        
-        // Start face detection immediately (don't wait for transcription)
-        setIsRecording(true);
-        console.log('✅ Recording state set to true - face detection should start');
-        
-        // Start transcription in parallel (don't block face detection)
-        transcribingService.startRecording((text, chunkIndex) => {
-          console.log(`📄 Transcription chunk ${chunkIndex}: ${text}`);
-        })
-          .then(() => {
-            console.log('✅ Transcription started successfully');
-          })
-          .catch((error) => {
-            console.error('⚠️ Failed to start transcription (face detection will continue):', error);
-          });
-      }
-    } catch (error) {
-      console.error('❌ Error toggling recording:', error);
-      // Even if there's an error, try to toggle recording state for face detection
-      setIsRecording(!isRecording);
-    }
+    setIsRecording(prev => !prev);
   };
 
 
@@ -123,8 +167,13 @@ const Index = () => {
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Session ID:</span>
-                    <code className="text-xs text-foreground font-mono">
-                      {session.id.slice(0, 8)}
+                    <code className="text-xs text-foreground font-mono bg-background/50 px-2 py-1 rounded cursor-pointer hover:bg-background/80" 
+                          title="Click to copy"
+                          onClick={() => {
+                            navigator.clipboard.writeText(sessionId);
+                            alert('Session ID copied to clipboard!');
+                          }}>
+                      {sessionId}
                     </code>
                   </div>
                   <div className="w-px h-4 bg-border" />
