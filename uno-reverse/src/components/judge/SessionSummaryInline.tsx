@@ -28,6 +28,7 @@ interface SessionSummary {
   questionCount?: number;
   questionQuality?: number;
   questionInsights?: string;
+  comedyAnalysis?: string;
   feedback?: string;
   transcript?: string;
   taggedTranscript?: string;
@@ -168,6 +169,7 @@ export function SessionSummaryInline({ summary, snapshots }: SessionSummaryInlin
         </motion.div>
       )}
 
+
       {/* Average Metrics */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -234,6 +236,23 @@ export function SessionSummaryInline({ summary, snapshots }: SessionSummaryInlin
           taggedTranscript={summary.taggedTranscript}
           segments={summary.segments}
         />
+      )}
+
+      {/* User Experience Analysis */}
+      {summary.comedyAnalysis && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="glass-panel p-6"
+        >
+          <h3 className="text-lg font-display font-bold mb-4">Judging the Judge</h3>
+          <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.08] max-h-96 overflow-y-auto custom-scrollbar">
+            <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+              {summary.comedyAnalysis}
+            </p>
+          </div>
+        </motion.div>
       )}
 
       {/* Pitch Feedback */}
