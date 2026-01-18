@@ -1,16 +1,7 @@
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp } from 'lucide-react';
-
-interface MetricSnapshot {
-  timestamp: Date;
-  metrics: {
-    curiosityIndex: number;
-    attentionStability: number;
-    questionQuality: number;
-    vibeAlignment: number;
-  };
-}
+import { MetricSnapshot } from '@/services/metricsService';
 
 interface MetricsChartProps {
   snapshots: MetricSnapshot[];

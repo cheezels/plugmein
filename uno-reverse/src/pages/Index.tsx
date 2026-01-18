@@ -249,7 +249,7 @@ const Index = () => {
     isRecording,
   });
 
-  const { session, updateMetrics } = useJudgeMetrics(isRecording, detectionResult);
+  const { session, updateMetrics } = useJudgeMetrics(isRecording, detectionResult, videoRef.current);
 
   // Update question quality in metrics when it changes
   useEffect(() => {
