@@ -97,11 +97,56 @@ class TranscribingService {
     }
 
     // Wait for the final chunk to be sent
+    // We need to wait for ondataavailable to fire AFTER onstop
+    // The order is: stop() -> ondataavailable -> onstop
     await new Promise<void>((resolve) => {
       if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-        this.mediaRecorder.onstop = () => {
+        // Increment pending count preemptively for the final chunk
+        this.pendingChunks++;
+
+        this.mediaRecorder.ondataavailable = async (event) => {
+          if (event.data.size > 0) {
+            const currentChunkIndex = this.chunkIndex++;
+            // Don't increment again - we already did it above
+            try {
+              const formData = new FormData();
+              formData.append('audio', event.data, `chunk-${currentChunkIndex}.webm`);
+              formData.append('chunkIndex', currentChunkIndex.toString());
+              formData.append('sessionId', this.sessionId);
+
+              console.log(`Sending final chunk ${currentChunkIndex} to backend... (pending: ${this.pendingChunks})`);
+
+              const response = await fetch(`${BACKEND_URL}/transcribe-chunk`, {
+                method: 'POST',
+                body: formData,
+              });
+
+              if (!response.ok) {
+                throw new Error(`Backend returned ${response.status}`);
+              }
+
+              const data = await response.json();
+
+              if (data.success && data.text) {
+                console.log(`Final chunk ${currentChunkIndex} transcribed: "${data.text.substring(0, 50)}..."`);
+
+                if (this.onTranscriptCallback) {
+                  this.onTranscriptCallback(data.text, currentChunkIndex);
+                }
+              }
+            } catch (error) {
+              console.error(`Failed to send final chunk ${currentChunkIndex}:`, error);
+            } finally {
+              this.pendingChunks--;
+              console.log(`Final chunk ${currentChunkIndex} done. (pending: ${this.pendingChunks})`);
+            }
+          } else {
+            // No data in final chunk, decrement the preemptive increment
+            this.pendingChunks--;
+          }
           resolve();
         };
+
         this.mediaRecorder.stop();
       } else {
         resolve();
