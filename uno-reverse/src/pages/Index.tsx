@@ -24,8 +24,6 @@ const Index = () => {
   const [questionCount, setQuestionCount] = useState<number>(0);
   const [questionQuality, setQuestionQuality] = useState<number>(0);
   const [questionInsights, setQuestionInsights] = useState<string>('');
-  const [comedyVerdict, setComedyVerdict] = useState<string>('');
-  const [comedyPainRating, setComedyPainRating] = useState<number>(0);
   const [comedyAnalysis, setComedyAnalysis] = useState<string>('');
   const { cameraState, videoRef, startCamera, stopCamera } = useCamera();
   const [sessionId] = useState(() => {
@@ -93,8 +91,6 @@ const Index = () => {
         setQuestionCount(0);
         setQuestionQuality(0);
         setQuestionInsights('');
-        setComedyVerdict('');
-        setComedyPainRating(0);
         setComedyAnalysis('');
         setFeedback('');
         setIsProcessing(false);
@@ -149,8 +145,6 @@ const Index = () => {
           setPresentationScore(result.presentationScore);
           setQuestionCount(result.questionCount);
           setQuestionInsights(result.questionInsights);
-          setComedyVerdict(result.comedyVerdict || '');
-          setComedyPainRating(result.comedyPainRating || 0);
           setComedyAnalysis(result.comedyAnalysis || '');
           
           // Update question quality last to trigger the useEffect
@@ -198,8 +192,6 @@ const Index = () => {
             questionCount: result.questionCount,
             questionQuality: result.questionQuality,
             questionInsights: result.questionInsights,
-            comedyVerdict: result.comedyVerdict,
-            comedyPainRating: result.comedyPainRating,
             comedyAnalysis: result.comedyAnalysis,
             finalScore: finalScore,
             averageMetrics: updatedMetrics,
@@ -224,8 +216,6 @@ const Index = () => {
             questionCount: result.questionCount,
             questionQuality: result.questionQuality,
             questionInsights: result.questionInsights,
-            comedyVerdict: result.comedyVerdict,
-            comedyPainRating: result.comedyPainRating,
             comedyAnalysis: result.comedyAnalysis,
             finalScore: finalScore,
           };

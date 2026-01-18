@@ -182,39 +182,52 @@ def gemini_feedback():
 
         # Configuration for Gemini
         system_prompt = """
-        ### ROLE
-        You are a brutally honest pitch coach analyzing how judges reacted to a hackathon presentation.
-        Your job is to help the product makers understand what worked, what bombed, and how to improve.
+        You are a professional pitch consultant providing serious, actionable feedback to hackathon teams.
+        Your goal is to help presenters improve their pitch effectiveness and judge engagement.
 
-        ### TONE & PERSONALITY
-        - Direct, witty, and constructive—no sugarcoating, but always helpful
-        - Roast the presenters' mistakes (not the judges) but pivot to actionable advice
-        - Focus on judge engagement patterns: Did they ask questions? Did they sound interested?
-        - Never mention you are an AI. Keep it real and specific.
+        ### TONE
+        - Professional, constructive, and specific
+        - Focus on concrete observations and actionable improvements
+        - Supportive but honest - highlight both strengths and areas for growth
+        - No jokes or sarcasm - this is serious coaching
 
-        ### EVALUATION CRITERIA
-        Analyze the transcript to understand:
-        1. **Judge Engagement**: Were judges asking questions? Nodding along? Or silent and confused?
-        2. **Pitch Clarity**: Did the presenters explain the "How" clearly, or just buzzword salad?
-        3. **Hook Factor**: Did judges seem excited (interrupting with questions) or bored (crickets)?
-        4. **Red Flags**: Identify hesitations, unclear answers, or missed opportunities to engage judges
+        ### ANALYSIS FRAMEWORK
+        Evaluate the transcript based on:
+        1. **Judge Engagement**: Level of questions asked, depth of inquiry, signs of interest
+        2. **Clarity of Communication**: How well the team explained their solution
+        3. **Response Quality**: How effectively presenters answered judge questions
+        4. **Missed Opportunities**: Moments where engagement could have been strengthened
 
-        ### OUTPUT FORMAT
-        - **The Reality Check** (2 sentences): A direct assessment of how the judges received the pitch
-        - **What Worked / What Flopped** (4 bullet points): Specific examples from the transcript
-        - **Your Game Plan** (3 actionable steps): How to pitch better and engage judges more effectively next time
+        ### OUTPUT STRUCTURE
+        Provide a detailed analysis in paragraph form covering:
         
-        Remember: The goal is to help presenters understand judge reactions and improve their pitch game.
+        **Engagement Assessment** (2-3 sentences)
+        - Evaluate how engaged judges appeared based on their questions and responses
+        - Identify specific moments of high or low engagement
+        
+        **Strengths** (3-4 specific observations)
+        - What the presenters did well that kept judges interested
+        - Specific examples from the transcript
+        
+        **Areas for Improvement** (3-4 actionable points)
+        - What could be enhanced to better engage judges
+        - Specific techniques to implement next time
+        
+        **Strategic Recommendations** (2-3 concrete next steps)
+        - Prioritized actions to strengthen future pitches
+        - Focus on maximizing judge engagement and interest
+        
+        Write in clear, professional language. Be specific with examples from the transcript.
         """
 
-        # Call Gemini API for feedback
+        # Call Gemini API for feedback (serious pitch improvement advice)
         response = gemini_client.models.generate_content(
             model="gemini-2.0-flash",
-            contents=f"Analyze this hackathon pitch transcript. Focus on how the judges reacted and what the presenters could improve:\n\n{transcript}",
+            contents=f"Analyze this hackathon pitch transcript. Provide professional feedback on how the presenters can improve their pitch:\n\n{transcript}",
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
-                temperature=0.7,
-                max_output_tokens=1000
+                temperature=0.5,  # Lower temperature for more focused, professional output
+                max_output_tokens=1200
             )
         )
 
@@ -244,21 +257,36 @@ def gemini_feedback():
         INSIGHTS: [1-2 sentence analysis telling presenters what judge questions reveal about their pitch effectiveness]"""
 
         comedy_prompt = """
-        You are the Head of Design for "Inconvenience Corp." 
-        You are evaluating a Judge who is reviewing a login page designed to be impossible to use (nod-to-agree T&Cs, password restrictions, etc).
-
-        Analyze the Judge's questions in the transcript.
-
-        **The "Inconvenience" Rubric:**
-        - If the judge complains about the **Phone Number Slider**, penalize them for being lazy. 
-        - If the judge points out the **Password** restriction, tell them they are too idealist for the real world.
-        - If the judge sounds panicked by the **Submit Button**, give them high marks for emotional engagement.
-
-        IMPORTANT: Respond ONLY in this exact format:
-
-        VERDICT: [GUILTY of Bad Taste / INNOCENT Bystander]
-        PAIN_RATING: [1-10 Oofs]
-        ANALYSIS: [Speak to the judge directly. Tell them why their desire for a "good user experience" is weak. Be snarky.]
+        You are writing a comedic roast of a judge who just reviewed an INTENTIONALLY terrible login page 
+        (designed by "Inconvenience Corp" to be maximally frustrating).
+        
+        The terrible design features:
+        - A phone number SLIDER (impossible to dial precisely)
+        - Absurd password restrictions (must include emoji, GPS coordinates, etc.)
+        - A submit button that runs away when you hover over it
+        
+        Your job: Write 2-3 paragraphs DIRECTLY ADDRESSING THE JUDGE, roasting their reactions.
+        
+        ### TONE & STYLE
+        - Speak directly to the judge ("Dear Judge...", "You really thought...", "We noticed you...")
+        - Be playfully sarcastic and theatrical
+        - Reference specific complaints or reactions they had
+        - Mock their expectations of "good UX" like they're naive idealists
+        - Stay funny but clever - avoid being mean-spirited or offensive
+        
+        ### WHAT TO ROAST
+        - Did they complain about the slider? Roast them for wanting "convenience"
+        - Did they hate the password rules? Mock their "unrealistic standards"
+        - Did they rage at the disappearing button? Celebrate their emotional engagement
+        - Did they have NO reaction? Roast them for being too stoic
+        
+        ### FORMAT
+        Write as if you're a corporate spokesperson from "Inconvenience Corp" addressing the judge:
+        - Paragraph 1: Call out their specific reactions with mock-seriousness
+        - Paragraph 2: "Defend" your terrible design choices with absurd logic
+        - Paragraph 3: Give them a final comedic verdict on their performance as a tester
+        
+        Remember: This is COMEDY. Be theatrical, absurd, and entertaining. The judge should laugh at themselves.
         """
 
         question_response = gemini_client.models.generate_content(
@@ -291,42 +319,26 @@ def gemini_feedback():
 
         logger.info(f"Question Analysis: {question_count} questions, quality score: {question_quality}")
 
-        # Generate comedy analysis using comedy_prompt
+        # Generate comedy analysis - roast the judge directly
         comedy_response = gemini_client.models.generate_content(
             model="gemini-2.0-flash",
-            contents=f"Analyze the judge's reaction to our impossible login page:\n\n{transcript}",
+            contents=f"Write a comedic roast of the judge based on their reactions to our intentionally terrible login page:\n\n{transcript}",
             config=types.GenerateContentConfig(
                 system_instruction=comedy_prompt,
-                temperature=0.7,
-                max_output_tokens=300
+                temperature=1.0,  # Maximum creativity for theatrical comedy
+                max_output_tokens=1200
             )
         )
 
-        # Parse comedy analysis
-        comedy_verdict = "Unknown"
-        comedy_pain_rating = 5
-        comedy_analysis = "Analyzing your reaction..."
+        # Parse comedy analysis - just get the full text
+        comedy_analysis = "Analyzing your design choices..."
         
         try:
-            lines = comedy_response.text.strip().split('\n')
-            for line in lines:
-                if line.startswith('VERDICT:'):
-                    comedy_verdict = line.split(':', 1)[1].strip()
-                elif line.startswith('PAIN_RATING:'):
-                    pain_str = line.split(':', 1)[1].strip().split()[0]  # Get first word/number
-                    comedy_pain_rating = int(pain_str) if pain_str.isdigit() else 5
-                    comedy_pain_rating = max(1, min(10, comedy_pain_rating))
-                elif line.startswith('ANALYSIS:'):
-                    comedy_analysis = line.split(':', 1)[1].strip()
+            comedy_analysis = comedy_response.text.strip()
         except Exception as parse_error:
-            logger.warning(f"Failed to parse comedy analysis: {parse_error}")
-            # Try to use full response as analysis if parsing fails
-            try:
-                comedy_analysis = comedy_response.text.strip()
-            except:
-                pass
+            logger.warning(f"Failed to get comedy analysis: {parse_error}")
 
-        logger.info(f"Comedy Analysis: Verdict={comedy_verdict}, Pain={comedy_pain_rating}/10")
+        logger.info(f"Comedy Analysis generated: {len(comedy_analysis)} chars")
 
         # Calculate presentation score from ACTUAL METRICS (not AI opinion)
         # This score reflects objective data collected during the pitch
@@ -393,7 +405,7 @@ def gemini_feedback():
         [JUDGE] How does it handle authentication?
         [PRESENTER] We're using OAuth 2.0 with JWT tokens for secure authentication.
 
-        IMPORTANT: Output ONLY the tagged transcript, no other commentary."""
+        IMPORTANT: Output ONLY the tagged transcript, no other commentary, and keep the output mostly word for word."""
 
         try:
             speaker_response = gemini_client.models.generate_content(
@@ -425,8 +437,6 @@ def gemini_feedback():
             "questionCount": question_count,
             "questionQuality": question_quality,
             "questionInsights": question_insights,
-            "comedyVerdict": comedy_verdict,
-            "comedyPainRating": comedy_pain_rating,
             "comedyAnalysis": comedy_analysis,
             "success": True
         }), 200
