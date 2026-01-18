@@ -243,6 +243,24 @@ def gemini_feedback():
         QUALITY_SCORE: [number 0-100]
         INSIGHTS: [1-2 sentence analysis telling presenters what judge questions reveal about their pitch effectiveness]"""
 
+        comedy_prompt = """
+        You are the Head of Design for "Inconvenience Corp." 
+        You are evaluating a Judge who is reviewing a login page designed to be impossible to use (nod-to-agree T&Cs, password restrictions, etc).
+
+        Analyze the Judge's questions in the transcript.
+
+        **The "Inconvenience" Rubric:**
+        - If the judge complains about the **Phone Number Slider**, penalize them for being lazy. 
+        - If the judge points out the **Password** restriction, tell them they are too idealist for the real world.
+        - If the judge sounds panicked by the **Submit Button**, give them high marks for emotional engagement.
+
+        IMPORTANT: Respond ONLY in this exact format:
+
+        VERDICT: [GUILTY of Bad Taste / INNOCENT Bystander]
+        PAIN_RATING: [1-10 Oofs]
+        ANALYSIS: [Speak to the judge directly. Tell them why their desire for a "good user experience" is weak. Be snarky.]
+        """
+
         question_response = gemini_client.models.generate_content(
             model="gemini-2.0-flash",
             contents=f"Analyze how engaged the judges were based on their questions in this hackathon pitch:\n\n{transcript}",
@@ -272,6 +290,43 @@ def gemini_feedback():
             logger.warning(f"Failed to parse question analysis: {parse_error}")
 
         logger.info(f"Question Analysis: {question_count} questions, quality score: {question_quality}")
+
+        # Generate comedy analysis using comedy_prompt
+        comedy_response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=f"Analyze the judge's reaction to our impossible login page:\n\n{transcript}",
+            config=types.GenerateContentConfig(
+                system_instruction=comedy_prompt,
+                temperature=0.7,
+                max_output_tokens=300
+            )
+        )
+
+        # Parse comedy analysis
+        comedy_verdict = "Unknown"
+        comedy_pain_rating = 5
+        comedy_analysis = "Analyzing your reaction..."
+        
+        try:
+            lines = comedy_response.text.strip().split('\n')
+            for line in lines:
+                if line.startswith('VERDICT:'):
+                    comedy_verdict = line.split(':', 1)[1].strip()
+                elif line.startswith('PAIN_RATING:'):
+                    pain_str = line.split(':', 1)[1].strip().split()[0]  # Get first word/number
+                    comedy_pain_rating = int(pain_str) if pain_str.isdigit() else 5
+                    comedy_pain_rating = max(1, min(10, comedy_pain_rating))
+                elif line.startswith('ANALYSIS:'):
+                    comedy_analysis = line.split(':', 1)[1].strip()
+        except Exception as parse_error:
+            logger.warning(f"Failed to parse comedy analysis: {parse_error}")
+            # Try to use full response as analysis if parsing fails
+            try:
+                comedy_analysis = comedy_response.text.strip()
+            except:
+                pass
+
+        logger.info(f"Comedy Analysis: Verdict={comedy_verdict}, Pain={comedy_pain_rating}/10")
 
         # Calculate presentation score from ACTUAL METRICS (not AI opinion)
         # This score reflects objective data collected during the pitch
@@ -370,6 +425,9 @@ def gemini_feedback():
             "questionCount": question_count,
             "questionQuality": question_quality,
             "questionInsights": question_insights,
+            "comedyVerdict": comedy_verdict,
+            "comedyPainRating": comedy_pain_rating,
+            "comedyAnalysis": comedy_analysis,
             "success": True
         }), 200
 
