@@ -17,6 +17,8 @@ interface MetricsChartProps {
 }
 
 export function MetricsChart({ snapshots }: MetricsChartProps) {
+  console.log(`📊 Rendering chart with ${snapshots.length} snapshots`);
+  
   // Transform data for Recharts
   const chartData = snapshots.map((snapshot, index) => {
     const elapsedSeconds = index * 2; // Assuming 2-second intervals
@@ -87,6 +89,8 @@ export function MetricsChart({ snapshots }: MetricsChartProps) {
             stroke="hsl(217 10% 65%)"
             style={{ fontSize: '12px', fontFamily: 'Inter' }}
             tick={{ fill: 'hsl(217 10% 65%)' }}
+            interval="preserveStartEnd"
+            minTickGap={30}
           />
           
           <YAxis 
