@@ -45,10 +45,13 @@ export function ScreenshotsGallery({ snapshots }: ScreenshotsGalleryProps) {
     link.click();
   };
 
-  const handleClickPhoto = async (snapshot: MetricSnapshot) => {
+  const handleAnimefyRandom = async () => {
+    // Pick a random screenshot
+    const randomIndex = Math.floor(Math.random() * screenshotSnapshots.length);
+    const snapshot = screenshotSnapshots[randomIndex];
     if (!snapshot.screenshot) return;
 
-    // Open popup immediately and start anime-fy
+    // Open popup and start anime-fy
     setSelectedSnapshot(snapshot);
     setIsAnimefying(true);
     setAnimeError(null);
@@ -79,35 +82,22 @@ export function ScreenshotsGallery({ snapshots }: ScreenshotsGalleryProps) {
         className="glass-panel p-6"
       >
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-display font-bold">Session Screenshots</h3>
-            <span className="flex items-center gap-1 text-xs text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded-full">
-              <Sparkles className="w-3 h-3" />
-              Click to Anime-fy
-            </span>
-          </div>
+          <h3 className="text-lg font-display font-bold">Session Screenshots</h3>
           <span className="text-xs text-muted-foreground">{screenshotSnapshots.length} captures</span>
         </div>
 
         {/* Thumbnail Grid */}
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
           {screenshotSnapshots.map((snapshot, index) => (
-            <motion.button
+            <div
               key={index}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleClickPhoto(snapshot)}
-              className="relative aspect-video rounded-lg overflow-hidden border-2 border-transparent hover:border-purple-500/50 transition-all bg-black/20 group"
+              className="relative aspect-video rounded-lg overflow-hidden border-2 border-transparent bg-black/20"
             >
               <img
                 src={snapshot.screenshot}
                 alt={`Screenshot ${index + 1}`}
                 className="w-full h-full object-cover"
               />
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-purple-600/0 group-hover:bg-purple-600/30 transition-colors flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
               {/* Metric indicator dot */}
               <div
                 className={`absolute bottom-1 right-1 w-2 h-2 rounded-full ${
@@ -118,8 +108,20 @@ export function ScreenshotsGallery({ snapshots }: ScreenshotsGalleryProps) {
                     : 'bg-red-500'
                 }`}
               />
-            </motion.button>
+            </div>
           ))}
+        </div>
+
+        {/* Anime-fy Random Button */}
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={handleAnimefyRandom}
+            disabled={isAnimefying}
+            className="flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-medium transition-colors"
+          >
+            <Sparkles className="w-4 h-4" />
+            {isAnimefying ? 'Transforming...' : 'Anime-fy Random Photo'}
+          </button>
         </div>
       </motion.div>
 
@@ -180,7 +182,7 @@ export function ScreenshotsGallery({ snapshots }: ScreenshotsGalleryProps) {
                       <p className="text-sm">{animeError}</p>
                     </div>
                     <button
-                      onClick={() => handleClickPhoto(selectedSnapshot)}
+                      onClick={handleAnimefyRandom}
                       className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium transition-colors"
                     >
                       Try Again
