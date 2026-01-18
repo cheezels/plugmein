@@ -377,6 +377,62 @@ def gemini_feedback():
         logger.error(f"Error in gemini_feedback: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route("/anime-fy", methods=["POST"])
+def anime_fy():
+    """Transform a screenshot into anime style using Gemini's image generation"""
+    try:
+        data = request.get_json() or {}
+        image_data = data.get('imageData')  # Base64 encoded image
+
+        if not image_data:
+            return jsonify({"error": "No image data provided"}), 400
+
+        # Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+
+        import base64
+        image_bytes = base64.b64decode(image_data)
+
+        logger.info("Processing anime-fy request...")
+
+        # Use Gemini to generate anime-style image
+        # Gemini 2.0 Flash supports image generation with responseModalities
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash-exp",
+            contents=[
+                types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                "Transform this photo into a high-quality anime/manga art style. Keep the same composition, pose, and setting but render it as if it were a frame from a beautiful anime movie. Use vibrant colors, clean lines, and expressive anime-style features. Make it look like Studio Ghibli or Makoto Shinkai style artwork."
+            ],
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"],
+                temperature=1.0,
+            )
+        )
+
+        # Extract the generated image from response
+        anime_image_data = None
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                anime_image_data = base64.b64encode(part.inline_data.data).decode('utf-8')
+                mime_type = part.inline_data.mime_type
+                break
+
+        if not anime_image_data:
+            return jsonify({"error": "Failed to generate anime image"}), 500
+
+        logger.info("Anime-fy completed successfully")
+
+        return jsonify({
+            "success": True,
+            "animeImage": f"data:{mime_type};base64,{anime_image_data}"
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error in anime_fy: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/controller", methods=["GET"])
 def controller():
     """
