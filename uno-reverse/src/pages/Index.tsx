@@ -158,19 +158,28 @@ const Index = () => {
           console.log('🎯 Final comprehensive score:', finalScore);
           console.log('  (calculated from backend using all collected metrics)');
           
-          // Update the displayed metrics immediately with question quality
-          const updatedMetrics = {
-            ...faceSummary.averageMetrics,
-            questionQuality: result.questionQuality,
-          };
-          updateMetrics(updatedMetrics, null);
-          
           // Get session snapshots for the chart
           const snapshots = metricsService.getSessionSnapshots();
           console.log('📸 Session snapshots retrieved:', snapshots.length);
           
-          // Update summary with all data including question metrics
-          const comprehensiveSummary = {
+          // Update the displayed metrics immediately with question quality
+          const updatedMetrics = faceSummary ? {
+            ...faceSummary.averageMetrics,
+            questionQuality: result.questionQuality,
+          } : {
+            curiosityIndex: 0,
+            attentionStability: 0,
+            vibeAlignment: 0,
+            questionQuality: result.questionQuality,
+          };
+          
+          if (faceSummary) {
+            updateMetrics(updatedMetrics, null);
+          }
+          
+          // Create comprehensive summary with all required properties
+          const comprehensiveSummary = faceSummary ? {
+            // Face detection data available - use full summary
             ...faceSummary,
             transcript: result.transcript,
             taggedTranscript: result.taggedTranscript || result.transcript,
@@ -182,6 +191,28 @@ const Index = () => {
             questionInsights: result.questionInsights,
             finalScore: finalScore,
             averageMetrics: updatedMetrics,
+          } : {
+            // No face detection - create minimal summary with defaults
+            startTime: new Date(),
+            endTime: new Date(),
+            duration: 0,
+            totalSnapshots: snapshots.length,
+            averageMetrics: updatedMetrics,
+            metricTrends: {
+              curiosityIndex: { min: 0, max: 0, trend: 'stable' },
+              attentionStability: { min: 0, max: 0, trend: 'stable' },
+              vibeAlignment: { min: 0, max: 0, trend: 'stable' },
+            },
+            keyInsights: ['No face detection data available'],
+            transcript: result.transcript,
+            taggedTranscript: result.taggedTranscript || result.transcript,
+            segments: result.segments || [],
+            feedback: result.feedback,
+            presentationScore: result.presentationScore,
+            questionCount: result.questionCount,
+            questionQuality: result.questionQuality,
+            questionInsights: result.questionInsights,
+            finalScore: finalScore,
           };
           
           setSessionSummary(comprehensiveSummary);
