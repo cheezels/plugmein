@@ -82,6 +82,9 @@ class TranscribingService {
     questionCount: number;
     questionQuality: number;
     questionInsights: string;
+    comedyVerdict?: string;
+    comedyPainRating?: number;
+    comedyAnalysis?: string;
     taggedTranscript?: string;
     segments?: any[];
   } | null> {
@@ -130,6 +133,9 @@ class TranscribingService {
     questionCount: number;
     questionQuality: number;
     questionInsights: string;
+    comedyVerdict?: string;
+    comedyPainRating?: number;
+    comedyAnalysis?: string;
     taggedTranscript?: string;
     segments?: any[];
   } | null> {
@@ -168,6 +174,9 @@ class TranscribingService {
           questionCount: data.questionCount,
           questionQuality: data.questionQuality,
           questionInsights: data.questionInsights,
+          comedyVerdict: data.comedyVerdict,
+          comedyPainRating: data.comedyPainRating,
+          comedyAnalysis: data.comedyAnalysis,
           taggedTranscript: data.taggedTranscript,
           segments: data.segments
         };

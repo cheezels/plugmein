@@ -23,6 +23,9 @@ interface SessionSummary {
   questionCount?: number;
   questionQuality?: number;
   questionInsights?: string;
+  comedyVerdict?: string;
+  comedyPainRating?: number;
+  comedyAnalysis?: string;
   feedback?: string;
   transcript?: string;
 }
@@ -150,6 +153,67 @@ export function SessionSummary({ summary, onClose }: SessionSummaryProps) {
               {summary.questionInsights && (
                 <p className="text-sm text-muted-foreground italic">{summary.questionInsights}</p>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Comedy Analysis - Inconvenience Corp */}
+        {summary.comedyVerdict && summary.comedyAnalysis && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                <span className="text-xl">🎭</span>
+              </div>
+              <h3 className="text-lg font-semibold">
+                Inconvenience Corp™ Review
+              </h3>
+            </div>
+            
+            <div className="space-y-3">
+              {/* Verdict Banner */}
+              <div className="glass-panel p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-2 border-purple-500/30">
+                <div className="text-xs text-purple-400 uppercase tracking-wider font-semibold mb-1">
+                  Verdict
+                </div>
+                <div className="text-2xl font-bold text-purple-300">
+                  {summary.comedyVerdict}
+                </div>
+              </div>
+
+              {/* Pain Rating */}
+              <div className="glass-panel p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium">Pain Rating</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl font-bold text-orange-400">
+                      {summary.comedyPainRating}
+                    </span>
+                    <span className="text-xl text-muted-foreground">/10 Oofs</span>
+                  </div>
+                </div>
+                <div className="flex gap-1 mt-2">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`h-2 flex-1 rounded-full ${
+                        i < (summary.comedyPainRating || 0)
+                          ? 'bg-gradient-to-r from-orange-400 to-red-500'
+                          : 'bg-white/[0.05]'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Snarky Analysis */}
+              <div className="glass-panel p-4">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2">
+                  Analysis
+                </div>
+                <p className="text-sm text-foreground/90 leading-relaxed italic">
+                  "{summary.comedyAnalysis}"
+                </p>
+              </div>
             </div>
           </div>
         )}

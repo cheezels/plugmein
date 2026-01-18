@@ -24,6 +24,7 @@ const Index = () => {
   const [questionCount, setQuestionCount] = useState<number>(0);
   const [questionQuality, setQuestionQuality] = useState<number>(0);
   const [questionInsights, setQuestionInsights] = useState<string>('');
+  const [comedyAnalysis, setComedyAnalysis] = useState<string>('');
   const { cameraState, videoRef, startCamera, stopCamera } = useCamera();
   const [sessionId] = useState(() => {
     // Generate a random 6-character alphanumeric session ID (e.g., "A2K9X7")
@@ -90,6 +91,7 @@ const Index = () => {
         setQuestionCount(0);
         setQuestionQuality(0);
         setQuestionInsights('');
+        setComedyAnalysis('');
         setFeedback('');
         setIsProcessing(false);
         
@@ -143,6 +145,7 @@ const Index = () => {
           setPresentationScore(result.presentationScore);
           setQuestionCount(result.questionCount);
           setQuestionInsights(result.questionInsights);
+          setComedyAnalysis(result.comedyAnalysis || '');
           
           // Update question quality last to trigger the useEffect
           setQuestionQuality(result.questionQuality);
@@ -189,6 +192,7 @@ const Index = () => {
             questionCount: result.questionCount,
             questionQuality: result.questionQuality,
             questionInsights: result.questionInsights,
+            comedyAnalysis: result.comedyAnalysis,
             finalScore: finalScore,
             averageMetrics: updatedMetrics,
           } : {
@@ -212,6 +216,7 @@ const Index = () => {
             questionCount: result.questionCount,
             questionQuality: result.questionQuality,
             questionInsights: result.questionInsights,
+            comedyAnalysis: result.comedyAnalysis,
             finalScore: finalScore,
           };
           
