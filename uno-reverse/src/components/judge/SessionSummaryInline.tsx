@@ -1,18 +1,10 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, Hash, Award, MessageSquare, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { MetricsChart } from './MetricsChart';
 import { TranscriptTimeline } from './TranscriptTimeline';
-
-interface MetricSnapshot {
-  timestamp: Date;
-  metrics: {
-    curiosityIndex: number;
-    attentionStability: number;
-    questionQuality: number;
-    vibeAlignment: number;
-  };
-  detection: any;
-}
+import { SnapshotGallery } from './SnapshotGallery';
+import { MetricSnapshot } from '@/services/metricsService';
 
 interface SessionSummary {
   startTime: Date;
@@ -48,6 +40,8 @@ interface SessionSummaryInlineProps {
 }
 
 export function SessionSummaryInline({ summary, snapshots }: SessionSummaryInlineProps) {
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  
   const getTrendIcon = (trend: string) => {
     if (trend === 'improving') return <TrendingUp className="w-4 h-4 text-green-500" />;
     if (trend === 'declining') return <TrendingDown className="w-4 h-4 text-red-500" />;
@@ -114,13 +108,19 @@ export function SessionSummaryInline({ summary, snapshots }: SessionSummaryInlin
             </div>
             <p className="text-2xl font-display font-bold">{formatDuration(summary.duration)}</p>
           </div>
-          <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.08]">
-            <div className="flex items-center gap-2 text-muted-foreground mb-2">
+          <button
+            onClick={() => setIsGalleryOpen(true)}
+            className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.08] hover:bg-white/[0.08] hover:border-primary/50 transition-all cursor-pointer text-left group"
+          >
+            <div className="flex items-center gap-2 text-muted-foreground mb-2 group-hover:text-primary transition-colors">
               <Hash className="w-4 h-4" />
               <span className="text-xs font-semibold">Snapshots</span>
             </div>
             <p className="text-2xl font-display font-bold">{summary.totalSnapshots}</p>
-          </div>
+            <p className="text-xs text-muted-foreground mt-1 group-hover:text-primary/70 transition-colors">
+              Click to view gallery
+            </p>
+          </button>
           {summary.presentationScore !== undefined && (
             <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.08]">
               <div className="flex items-center gap-2 text-muted-foreground mb-2">
@@ -275,6 +275,13 @@ export function SessionSummaryInline({ summary, snapshots }: SessionSummaryInlin
           ))}
         </div>
       </motion.div>
+
+      {/* Snapshot Gallery Modal */}
+      <SnapshotGallery 
+        snapshots={snapshots}
+        isOpen={isGalleryOpen}
+        onClose={() => setIsGalleryOpen(false)}
+      />
     </motion.div>
   );
 }

@@ -11,13 +11,14 @@ interface DetectionHistory {
 }
 
 // Track session metrics for summary
-interface MetricSnapshot {
+export interface MetricSnapshot {
   timestamp: Date;
   metrics: JudgeMetrics;
   detection: HumanDetectionResult;
+  imageData?: string; // Base64 encoded image of the captured frame
 }
 
-interface SessionSummary {
+export interface SessionSummary {
   startTime: Date;
   endTime: Date;
   duration: number; // seconds
@@ -572,17 +573,19 @@ export const metricsService = {
   },
 
   // Log a metric snapshot during recording
-  logSnapshot(metrics: JudgeMetrics, detection: HumanDetectionResult): void {
+  logSnapshot(metrics: JudgeMetrics, detection: HumanDetectionResult, imageData?: string): void {
     const snapshot: MetricSnapshot = {
       timestamp: new Date(),
       metrics,
       detection,
+      imageData,
     };
     sessionSnapshots.push(snapshot);
     
     console.log('📊 Snapshot logged:', {
       time: snapshot.timestamp.toLocaleTimeString(),
       metrics,
+      hasImage: !!imageData,
       total: sessionSnapshots.length,
     });
   },
